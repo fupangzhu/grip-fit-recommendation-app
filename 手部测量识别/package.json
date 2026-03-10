@@ -1,0 +1,12 @@
+{
+  "name": "palmscan",
+  "version": "1.0.0",
+  "description": "Hand biometric measurement demo",
+  "private": true,
+  "dependencies": {
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/drawing_utils": "^0.3.1675466124",
+    "@mediapipe/hands": "^0.4.1675469240",
+    "three": "^0.163.0"
+  }
+}
