@@ -407,7 +407,7 @@ export function HandMeasurement() {
           {activeTab === 'camera' && (
             <div className="bg-white rounded-xl border border-[#e8e8ed] overflow-hidden" style={{ height: '700px' }}>
               <iframe
-                src="/palmscan/index.html"
+                src="/palmscan/index.html?v=0311"
                 className="w-full h-full border-0"
                 allow="camera"
                 title="AI Hand Measurement"
