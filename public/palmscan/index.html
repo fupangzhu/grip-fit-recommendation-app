@@ -1160,8 +1160,7 @@
           <span class="setup-title">请输入您的手长</span>
           <span class="setup-hint">测量方法：腕横纹中点 → 中指尖<br>（用直尺或软尺沿手背量取，单位 mm）</span>
           <div class="setup-row">
-            <input id="setupInput" type="number" min="100" max="250" step="1" placeholder="例: 180"
-              inputmode="numeric" />
+            <input id="setupInput" type="number" min="100" max="250" step="1" value="180" inputmode="numeric" />
             <span class="setup-unit">mm</span>
             <button id="setupConfirm" onclick="applySetupCalib()">✓ 确认</button>
           </div>
@@ -1436,9 +1435,16 @@
       status.className = 'ok';
       status.textContent = `✓ 手长 ${v} mm 已记录`;
 
-      /* 解锁开始按钮 */
-      document.getElementById('startBtn').disabled = false;
-      document.getElementById('startSub').textContent = '将双手完全展开平放置于摄像头前';
+      /* 解锁并高亮开始按钮 */
+      const startBtn = document.getElementById('startBtn');
+      startBtn.disabled = false;
+      startBtn.style.background = '#000';
+      startBtn.style.boxShadow = '0 0 20px rgba(0,0,0,0.15)';
+
+      const startSub = document.getElementById('startSub');
+      startSub.style.color = '#111';
+      startSub.style.fontWeight = '700';
+      startSub.textContent = '准备就绪！请点击上方 [开始采集] 按钮';
     };
 
     /* ─────────────────────────────────────────────────────────
