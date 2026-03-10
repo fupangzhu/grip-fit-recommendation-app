@@ -1,49 +1,40 @@
-# Dependencies
+# dependencies
 node_modules/
 .pnp
 .pnp.js
 
-# Build output
-dist/
-build/
+# testing
+coverage
+
+# next.js
 .next/
 out/
 
-# Environment variables (contains secrets)
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# production
+build
+dist
 
-# Logs
+# misc
+.DS_Store
+*.pem
+
+# debug
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
 
-# Editor
-.vscode/
-.idea/
-*.swp
-*.swo
+# local env files
+.env*.local
 
-# OS
-.DS_Store
-Thumbs.db
+# vercel
+.vercel
 
-# Cache
-.cache/
-.parcel-cache/
-.eslintcache
-
-# TypeScript
+# typescript
 *.tsbuildinfo
+next-env.d.ts
 
-# Claude Code internal
-**/.claude/worktrees/
-**/.claude/settings.local.json
-
-# Large files
-*.pdf
+# Large files (manually added)
+1011-手机手感最佳人因设计参考手册.pdf
 public/palmscan
+手部测量识别/
+手机购买推荐app设计.zip
