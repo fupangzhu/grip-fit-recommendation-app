@@ -1,0 +1,2729 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PalmScan · 手部生理数据采集系统</title>
+  <!-- 字体走系统本地字体，无需 CDN（Google Fonts 在国内被封锁） -->
+  <style>
+    /* ─── 本地字体栈（完全无 CDN 依赖） ──────────────────
+       正文: 系统 sans-serif（Win: Segoe UI / Mac: SF Pro）
+       等宽: 系统 monospace（Win: Consolas / Mac: Menlo）     */
+    :root {
+      --font-sans: 'Segoe UI', system-ui, -apple-system, 'PingFang SC',
+        'Microsoft YaHei', sans-serif;
+      --font-mono: ui-monospace, 'Cascadia Code', Consolas,
+        'Courier New', monospace;
+    }
+  </style>
+  <style>
+    /* ─── RESET & VARIABLES  (Wireframe Prototype) ──────── */
+    :root {
+      --bg: #ffffff;
+      --surface: #f5f5f5;
+      --ink: #111111;
+      --ink2: #444444;
+      --ink3: #888888;
+      --rule: #111111;
+      --rule-lt: #cccccc;
+      --rule-dash: #aaaaaa;
+      --active: #111111;
+      --stripe: repeating-linear-gradient(-45deg,
+          transparent 0px, transparent 3px,
+          rgba(0, 0, 0, .07) 3px, rgba(0, 0, 0, .07) 4px);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      /* subtle dot-grid */
+      background-image: radial-gradient(circle, #d8d8d8 1px, transparent 1px);
+      background-size: 22px 22px;
+    }
+
+    /* ─── HEADER ────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 50px;
+      padding: 0 20px;
+      background: #ffffff;
+      border-bottom: 1.5px solid var(--rule);
+      position: relative;
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      border: 1.5px solid var(--ink);
+      border-radius: 3px;
+      display: grid;
+      place-items: center;
+    }
+
+    .logo h1 {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--ink);
+      letter-spacing: 2px;
+      font-weight: 700;
+    }
+
+    .logo h1 small {
+      color: var(--ink3);
+      font-size: 10px;
+      margin-left: 6px;
+      letter-spacing: 0;
+      font-weight: 400;
+    }
+
+    .hd-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .stat-chip {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      color: var(--ink3);
+      font-family: var(--font-mono);
+      letter-spacing: .5px;
+    }
+
+    /* status dot → small square for wireframe feel */
+    .dot {
+      width: 7px;
+      height: 7px;
+      border: 1.5px solid var(--ink3);
+      border-radius: 50%;
+      transition: all .25s;
+    }
+
+    .dot.on {
+      background: var(--ink);
+      border-color: var(--ink);
+      animation: blink 1.8s infinite;
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .3
+      }
+    }
+
+    .dot.pulse {
+      background: var(--ink3);
+      border-color: var(--ink3);
+      animation: dotpulse .9s ease-in-out infinite;
+    }
+
+    @keyframes dotpulse {
+
+      0%,
+      100% {
+        opacity: .25;
+        transform: scale(.8)
+      }
+
+      50% {
+        opacity: 1;
+        transform: scale(1.2)
+      }
+    }
+
+    /* ── Calibration bar ──────────────────────────────────── */
+    #calibBar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 6px 14px;
+      border-bottom: 1px dashed var(--rule-dash);
+      background: var(--surface);
+      font-size: 11px;
+      font-family: var(--font-mono);
+    }
+
+    #calibBar label {
+      color: var(--ink2);
+      white-space: nowrap;
+    }
+
+    #calibInput {
+      width: 70px;
+      border: 1.5px solid var(--rule);
+      background: var(--bg);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 3px 6px;
+      color: var(--ink);
+      text-align: right;
+    }
+
+    #calibInput:focus {
+      outline: none;
+      border-color: var(--active);
+    }
+
+    #calibUnit {
+      font-size: 11px;
+      color: var(--ink3);
+    }
+
+    #calibBtn {
+      padding: 3px 10px;
+      border: 1.5px solid var(--ink);
+      background: var(--ink);
+      color: var(--bg);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      cursor: pointer;
+      letter-spacing: .04em;
+    }
+
+    #calibBtn:hover {
+      opacity: .75;
+    }
+
+    #calibStatus {
+      font-size: 10px;
+      color: var(--ink3);
+      white-space: nowrap;
+    }
+
+    #calibStatus.ok {
+      color: #228833;
+    }
+
+    #calibStatus.warn {
+      color: #cc5500;
+    }
+
+    #handCountChip {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--ink);
+      border: 1.5px solid var(--rule);
+      border-radius: 2px;
+      padding: 2px 9px;
+      letter-spacing: .5px;
+    }
+
+    #stopBtn {
+      padding: 4px 13px;
+      background: transparent;
+      border: 1.5px solid var(--ink);
+      border-radius: 2px;
+      color: var(--ink);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      cursor: pointer;
+      transition: all .15s;
+      display: none;
+      letter-spacing: .5px;
+    }
+
+    #stopBtn:hover {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    /* ─── LAYOUT ─────────────────────────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 120px;
+      gap: 8px;
+      padding: 8px;
+      height: calc(100vh - 50px);
+    }
+
+    /* ─── PANELS ─────────────────────────────────────────── */
+    .panel {
+      background: #fff;
+      border: 1.5px solid var(--rule);
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Top-left annotation notch */
+    .panel::before {
+      content: '';
+      position: absolute;
+      top: -1px;
+      left: 16px;
+      width: 32px;
+      height: 3px;
+      background: #fff;
+      pointer-events: none;
+    }
+
+    .ph {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      border-bottom: 1px dashed var(--rule-dash);
+      min-height: 32px;
+      background: var(--surface);
+    }
+
+    .ptitle {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: var(--ink2);
+      text-transform: uppercase;
+    }
+
+    .pbadge {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 1px 7px;
+      border: 1px solid var(--rule-dash);
+      border-radius: 2px;
+      color: var(--ink3);
+      transition: all .25s;
+      letter-spacing: .5px;
+    }
+
+    .pbadge.live {
+      border-color: var(--ink);
+      color: var(--ink);
+      background: var(--stripe);
+    }
+
+    /* ─── CAMERA PANEL ───────────────────────────────────── */
+    .cam-wrap {
+      position: relative;
+      width: 100%;
+      height: calc(100% - 32px);
+      overflow: hidden;
+      background: #1a1a1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #videoEl {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    #camCanvas {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Guide frame */
+    .guide-frame {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gf-inner {
+      position: relative;
+      width: 82%;
+      height: 82%;
+    }
+
+    .corner {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-color: #fff;
+      border-style: solid;
+      opacity: .8;
+    }
+
+    .corner.tl {
+      top: 0;
+      left: 0;
+      border-width: 2px 0 0 2px;
+    }
+
+    .corner.tr {
+      top: 0;
+      right: 0;
+      border-width: 2px 2px 0 0;
+    }
+
+    .corner.bl {
+      bottom: 0;
+      left: 0;
+      border-width: 0 0 2px 2px;
+    }
+
+    .corner.br {
+      bottom: 0;
+      right: 0;
+      border-width: 0 2px 2px 0;
+    }
+
+    .guide-label {
+      position: absolute;
+      bottom: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: rgba(255, 255, 255, .6);
+      white-space: nowrap;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* Scanline — thin white dashes */
+    .scan {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: rgba(255, 255, 255, .55);
+      animation: scan 4s ease-in-out infinite;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    @keyframes scan {
+      0% {
+        top: 8%;
+        opacity: 0
+      }
+
+      8% {
+        opacity: .7
+      }
+
+      92% {
+        opacity: .7
+      }
+
+      100% {
+        top: 92%;
+        opacity: 0
+      }
+    }
+
+    /* Detection pill */
+    #detPill {
+      position: absolute;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, .72);
+      border: 1px solid rgba(255, 255, 255, .3);
+      border-radius: 2px;
+      padding: 4px 14px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: rgba(255, 255, 255, .55);
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .25s;
+      white-space: nowrap;
+      letter-spacing: .5px;
+    }
+
+    #detPill.ok {
+      border-color: rgba(255, 255, 255, .8);
+      color: #fff;
+      background: rgba(0, 0, 0, .8);
+    }
+
+    .lm-count {
+      position: absolute;
+      top: 6px;
+      left: 10px;
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: rgba(255, 255, 255, .45);
+      background: rgba(0, 0, 0, .4);
+      padding: 1px 6px;
+      border-radius: 1px;
+    }
+
+    .fps-tag {
+      position: absolute;
+      top: 6px;
+      right: 10px;
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: rgba(255, 255, 255, .3);
+    }
+
+    /* ─── START OVERLAY ──────────────────────────────────── */
+    #startOverlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, .96);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 20;
+    }
+
+    #startOverlay.hidden {
+      display: none;
+    }
+
+    .hand-icon svg {
+      opacity: .85;
+    }
+
+    /* ── 步骤一：手长输入框 ── */
+    .setup-box {
+      border: 1.5px solid var(--rule);
+      border-radius: 2px;
+      padding: 14px 18px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      width: 272px;
+    }
+
+    .setup-step {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: var(--ink3);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .setup-title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--ink);
+    }
+
+    .setup-hint {
+      font-size: 10px;
+      color: var(--ink3);
+      line-height: 1.6;
+    }
+
+    .setup-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    #setupInput {
+      flex: 1;
+      border: 1.5px solid var(--rule);
+      background: var(--surface);
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 700;
+      padding: 5px 8px;
+      color: var(--ink);
+      text-align: right;
+      min-width: 0;
+    }
+
+    #setupInput:focus {
+      outline: none;
+      border-color: var(--active);
+    }
+
+    .setup-unit {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink3);
+    }
+
+    #setupConfirm {
+      padding: 6px 14px;
+      border: 1.5px solid var(--ink);
+      background: var(--ink);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: .3px;
+      cursor: pointer;
+      border-radius: 1px;
+      white-space: nowrap;
+    }
+
+    #setupConfirm:hover {
+      opacity: .75;
+    }
+
+    #setupStatus {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      min-height: 13px;
+    }
+
+    #setupStatus.ok {
+      color: #228833;
+    }
+
+    #setupStatus.warn {
+      color: #cc5500;
+    }
+
+    #startBtn {
+      padding: 11px 40px;
+      background: var(--ink);
+      border: none;
+      border-radius: 2px;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all .15s;
+    }
+
+    #startBtn:disabled {
+      background: var(--rule-lt);
+      color: var(--ink3);
+      cursor: not-allowed;
+    }
+
+    #startBtn:not(:disabled):hover {
+      background: #333;
+      transform: translateY(-1px);
+    }
+
+    #startBtn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .start-sub {
+      color: var(--ink3);
+      font-size: 11px;
+      text-align: center;
+      max-width: 260px;
+      line-height: 1.8;
+      letter-spacing: .3px;
+    }
+
+    /* ─── LOADING OVERLAY ────────────────────────────────── */
+    #loadOverlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, .96);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 30;
+    }
+
+    #loadOverlay.hidden {
+      display: none;
+    }
+
+    /* Non-blocking AI model loading banner */
+    #modelBanner {
+      position: absolute;
+      bottom: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, .95);
+      border: 1.5px dashed var(--rule-dash);
+      padding: 5px 12px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 20;
+      white-space: nowrap;
+      border-radius: 2px;
+    }
+
+    #modelBanner.hidden {
+      display: none;
+    }
+
+    #modelBanner .mini-spin {
+      width: 9px;
+      height: 9px;
+      flex-shrink: 0;
+      border: 1.5px solid var(--rule-lt);
+      border-top-color: var(--ink);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+
+    #modelBanner.err {
+      border-color: #c00;
+      color: #c00;
+    }
+
+    #modelBanner.err .mini-spin {
+      display: none;
+    }
+
+    /* wireframe spinner = simple square that rotates */
+    .spinner {
+      width: 26px;
+      height: 26px;
+      border: 2px solid var(--rule-lt);
+      border-top: 2px solid var(--ink);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .load-txt {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--ink3);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* ─── THREE.JS PANEL ─────────────────────────────────── */
+    #threeCanvas {
+      display: block;
+      width: 100%;
+      height: calc(100% - 32px);
+    }
+
+    .three-hint {
+      position: absolute;
+      bottom: 7px;
+      right: 10px;
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: var(--ink3);
+      letter-spacing: .5px;
+    }
+
+    .ctrl-row {
+      position: absolute;
+      bottom: 7px;
+      left: 10px;
+      display: flex;
+      gap: 5px;
+    }
+
+    .cbtn {
+      padding: 3px 11px;
+      background: transparent;
+      border: 1px solid var(--rule-dash);
+      border-radius: 1px;
+      color: var(--ink3);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      cursor: pointer;
+      transition: all .15s;
+      letter-spacing: .5px;
+    }
+
+    .cbtn:hover {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    .cbtn.active-btn {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    /* ─── DATA PANEL ─────────────────────────────────────── */
+    .data-panel {
+      grid-column: 1/-1;
+    }
+
+    .conf-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .conf-bar-bg {
+      width: 80px;
+      height: 3px;
+      background: var(--rule-lt);
+      overflow: hidden;
+    }
+
+    #confBar {
+      height: 100%;
+      width: 0%;
+      background: var(--stripe);
+      border-right: 1px solid var(--ink);
+      transition: width .35s;
+    }
+
+    #confVal {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--ink3);
+    }
+
+    .data-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 6px;
+      padding: 7px 12px;
+      height: calc(100% - 32px);
+    }
+
+    .dc {
+      background: #fff;
+      border: 1px dashed var(--rule-dash);
+      border-radius: 1px;
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all .3s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Active: switch to solid border + hatched bg */
+    .dc.on {
+      border: 1.5px solid var(--ink);
+      background: var(--stripe);
+    }
+
+    .dc-lbl {
+      font-family: var(--font-sans);
+      font-size: 8px;
+      color: var(--ink3);
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    .dc-val {
+      font-family: var(--font-mono);
+      font-size: 19px;
+      color: var(--ink);
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .dc-unit {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: var(--ink3);
+    }
+
+    /* progress bar: solid black fill */
+    .dc-bar {
+      height: 3px;
+      background: var(--rule-lt);
+      overflow: hidden;
+      margin-top: 3px;
+    }
+
+    .dc-fill {
+      height: 100%;
+      background: var(--ink);
+      transition: width .5s ease;
+      width: 0%;
+    }
+
+    .dc-pct {
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--ink3);
+      margin-top: 1px;
+    }
+
+    /* ─── QUALITY / CALIBRATION BAR (HUD inside camera feed) ─ */
+    .quality-row {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px;
+      z-index: 6;
+      background: linear-gradient(transparent, rgba(0, 0, 0, .72));
+    }
+
+    .quality-label {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: rgba(255, 255, 255, .55);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .quality-track {
+      flex: 1;
+      height: 5px;
+      background: rgba(255, 255, 255, .15);
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #qualityFill {
+      height: 100%;
+      width: 0%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, rgba(255, 255, 255, .3) 0%, rgba(255, 255, 255, .9) 100%);
+      transition: width .25s ease;
+    }
+
+    #qualityFill.full {
+      background: linear-gradient(90deg, #aaa, #fff);
+    }
+
+    #qualityFill.counting {
+      background: linear-gradient(90deg, rgba(255, 230, 100, .6), rgba(255, 255, 180, .95));
+      animation: countPulse .8s ease-in-out infinite;
+    }
+
+    #qualityFill.locked {
+      background: linear-gradient(90deg, rgba(100, 255, 160, .7), rgba(200, 255, 220, 1));
+      animation: none;
+    }
+
+    @keyframes countPulse {
+
+      0%,
+      100% {
+        opacity: .85
+      }
+
+      50% {
+        opacity: 1
+      }
+    }
+
+    #qualityPct {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: rgba(255, 255, 255, .75);
+      white-space: nowrap;
+      min-width: 32px;
+      text-align: right;
+    }
+
+    .quality-hint {
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: rgba(255, 255, 255, .35);
+      letter-spacing: .5px;
+      white-space: nowrap;
+    }
+
+    /* ─── POSE BUTTONS (in 3D panel) ─────────────────────── */
+    .pose-row {
+      position: absolute;
+      top: 34px;
+      left: 0;
+      right: 0;
+      display: flex;
+      gap: 4px;
+      padding: 4px 10px;
+      background: rgba(248, 248, 248, .94);
+      border-bottom: 1px dashed var(--rule-dash);
+      z-index: 4;
+    }
+
+    .pose-row.hidden {
+      display: none;
+    }
+
+    .pbtn {
+      padding: 3px 10px;
+      background: transparent;
+      border: 1px solid var(--rule-dash);
+      border-radius: 1px;
+      color: var(--ink3);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      cursor: pointer;
+      transition: all .15s;
+      letter-spacing: .3px;
+      white-space: nowrap;
+    }
+
+    .pbtn:hover {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    .pbtn.active-pose {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    /* mode chip in 3D panel header */
+    #modeBadge {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      padding: 2px 8px;
+      border: 1px solid var(--rule-dash);
+      border-radius: 2px;
+      color: var(--ink3);
+      letter-spacing: .5px;
+      transition: all .3s;
+    }
+
+    #modeBadge.calib-mode {
+      border-color: #888;
+      color: #555;
+      background: var(--stripe);
+    }
+
+    #modeBadge.grip-mode {
+      border-color: var(--ink);
+      background: var(--ink);
+      color: #fff;
+    }
+
+    /* Offset canvas when pose row is visible (grip mode) */
+    #threeCanvas.grip {
+      height: calc(100% - 34px - 34px);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ═══════ HEADER ════════════════════════════════════════ -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+          <path d="M10 2v4M7 3v4M13 3v4M4 5.5v4M16 5.5v4" stroke="#111" stroke-width="1.6" stroke-linecap="round" />
+          <rect x="3" y="9.5" width="14" height="8" rx="2.5" stroke="#111" stroke-width="1.4" />
+        </svg>
+      </div>
+      <h1>PALMSCAN<small>v1.0</small></h1>
+    </div>
+
+    <div class="hd-right">
+      <div class="stat-chip">
+        <div class="dot" id="dCam"></div>CAMERA
+      </div>
+      <div class="stat-chip">
+        <div class="dot" id="dModel"></div>AI MODEL
+      </div>
+      <div class="stat-chip">
+        <div class="dot" id="dDet"></div>DETECTION
+      </div>
+      <div id="handCountChip">HANDS · 0</div>
+      <button id="stopBtn" onclick="stopCapture()">■ STOP</button>
+    </div>
+  </header>
+
+  <!-- ═══════ MAIN LAYOUT ═══════════════════════════════════ -->
+  <div class="layout">
+
+    <!-- ── CAMERA PANEL ─────────────────────────────────── -->
+    <div class="panel">
+      <div class="ph">
+        <span class="ptitle">CAMERA FEED</span>
+        <span class="pbadge" id="liveBadge">STANDBY</span>
+      </div>
+
+      <div class="cam-wrap">
+        <video id="videoEl" playsinline autoplay muted></video>
+        <canvas id="camCanvas"></canvas>
+
+        <!-- Guide frame overlay -->
+        <div class="guide-frame">
+          <div class="gf-inner">
+            <div class="corner tl"></div>
+            <div class="corner tr"></div>
+            <div class="corner bl"></div>
+            <div class="corner br"></div>
+            <!-- SVG two-hand spread silhouette hint -->
+            <svg style="position:absolute;inset:0;width:100%;height:100%;opacity:.20;pointer-events:none;"
+              viewBox="0 0 420 300" preserveAspectRatio="xMidYMid meet">
+              <!-- RIGHT hand (right side of frame) -->
+              <g transform="translate(220,0)">
+                <path d="M68,260 C48,258 38,238 38,218 L38,158
+                       L34,102 C34,91 40,86 50,86 C60,86 65,91 65,102 L65,142
+                       L67,82 C67,71 72,65 82,65 C92,65 98,71 98,82 L98,142
+                       L100,73 C100,62 106,57 116,57 C126,57 131,62 131,73 L131,142
+                       L133,86 C133,75 138,70 148,70 C158,70 163,75 163,86 L163,158
+                       C163,178 159,190 155,202 L144,222 C139,238 128,248 112,253 L90,259 Z" fill="none"
+                  stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4" />
+                <path d="M68,218 C55,208 38,198 34,182 C30,166 38,152 52,155
+                       C57,156 63,161 66,168" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4" />
+              </g>
+              <!-- LEFT hand (left side, horizontally mirrored) -->
+              <g transform="translate(200,0) scale(-1,1)">
+                <path d="M68,260 C48,258 38,238 38,218 L38,158
+                       L34,102 C34,91 40,86 50,86 C60,86 65,91 65,102 L65,142
+                       L67,82 C67,71 72,65 82,65 C92,65 98,71 98,82 L98,142
+                       L100,73 C100,62 106,57 116,57 C126,57 131,62 131,73 L131,142
+                       L133,86 C133,75 138,70 148,70 C158,70 163,75 163,86 L163,158
+                       C163,178 159,190 155,202 L144,222 C139,238 128,248 112,253 L90,259 Z" fill="none"
+                  stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4" />
+                <path d="M68,218 C55,208 38,198 34,182 C30,166 38,152 52,155
+                       C57,156 63,161 66,168" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4" />
+              </g>
+            </svg>
+            <div class="scan"></div>
+            <div class="guide-label">将双手展开平放镜头前</div>
+          </div>
+        </div>
+
+        <!-- Quality / Calibration progress bar (HUD) -->
+        <div class="quality-row" id="qualityRow">
+          <span class="quality-label">校准进度</span>
+          <div class="quality-track">
+            <div id="qualityFill"></div>
+          </div>
+          <span id="qualityPct">0%</span>
+          <span class="quality-hint" id="qualityHint">展开双手掌心朝前</span>
+        </div>
+
+        <div id="detPill">
+          <div class="dot" id="detDot"></div><span id="detTxt">等待检测手部…</span>
+        </div>
+        <div class="lm-count" id="lmCount">LM: 0/21</div>
+        <div class="fps-tag" id="fpsTag">-- FPS</div>
+      </div>
+
+      <!-- START OVERLAY -->
+      <div id="startOverlay">
+        <div class="hand-icon">
+          <svg width="46" height="46" viewBox="0 0 56 56" fill="none">
+            <rect x="2" y="2" width="52" height="52" stroke="#111" stroke-width="1.5" stroke-dasharray="5 4"
+              fill="none" />
+            <path d="M28 12v5M23 13v5M33 13v5M18 16v5M38 16v5" stroke="#111" stroke-width="2" stroke-linecap="round" />
+            <rect x="14" y="21" width="28" height="18" rx="3" stroke="#111" stroke-width="1.5" fill="none" />
+          </svg>
+        </div>
+
+        <!-- 步骤一：先填写手长 -->
+        <div class="setup-box">
+          <span class="setup-step">步骤 1 / 2 · 手部校准</span>
+          <span class="setup-title">请输入您的手长</span>
+          <span class="setup-hint">测量方法：腕横纹中点 → 中指尖<br>（用直尺或软尺沿手背量取，单位 mm）</span>
+          <div class="setup-row">
+            <input id="setupInput" type="number" min="100" max="250" step="1" placeholder="例: 180"
+              inputmode="numeric" />
+            <span class="setup-unit">mm</span>
+            <button id="setupConfirm" onclick="applySetupCalib()">✓ 确认</button>
+          </div>
+          <div id="setupStatus"></div>
+        </div>
+
+        <!-- 步骤二：开始采集 -->
+        <button id="startBtn" onclick="startCapture()" disabled>▶ 开始采集</button>
+        <p class="start-sub" id="startSub">请先输入手长，再开始采集</p>
+      </div>
+
+      <!-- LOADING OVERLAY (camera-open phase only, ~1s) -->
+      <div id="loadOverlay" class="hidden">
+        <div class="spinner"></div>
+        <div class="load-txt">OPENING CAMERA…</div>
+      </div>
+
+      <!-- AI MODEL LOADING BANNER (non-blocking, shown after camera opens) -->
+      <div id="modelBanner" class="hidden">
+        <div class="mini-spin"></div>
+        <span id="modelBannerTxt">AI MODEL LOADING…</span>
+      </div>
+    </div>
+
+    <!-- ── THREE.JS PANEL ───────────────────────────────── -->
+    <div class="panel"
+      style="position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; overflow: hidden; z-index: -1;">
+      <div class="ph">
+        <span class="ptitle">3D HAND MODEL</span>
+        <span id="modeBadge" class="calib-mode">校准模式</span>
+      </div>
+      <!-- Pose buttons (hidden until calibration complete) -->
+      <div class="pose-row hidden" id="poseRow">
+        <span
+          style="font-family:var(--font-mono);font-size:8px;color:var(--ink3);letter-spacing:.5px;margin-right:4px;">握姿:</span>
+        <button class="pbtn active-pose" id="poseNormal" onclick="setPose('grip_normal')">标准握持</button>
+        <button class="pbtn" id="posePinky" onclick="setPose('grip_pinky')">小拇指垫底</button>
+      </div>
+      <canvas id="threeCanvas"></canvas>
+      <div class="ctrl-row">
+        <button class="cbtn" id="resetBtn">重置视角</button>
+        <button class="cbtn" id="wireBtn">线框</button>
+        <button class="cbtn" id="rotBtn">自动旋转</button>
+        <button class="cbtn" id="recalibBtn" onclick="recalibrate()" style="display:none">↺ 重新测量</button>
+      </div>
+      <div class="three-hint">🖱 拖拽旋转 · 滚轮缩放 · 右键平移</div>
+    </div>
+
+    <!-- ── DATA PANEL ────────────────────────────────────── -->
+    <div class="panel data-panel">
+      <div class="ph">
+        <span class="ptitle">BIOMETRIC DATA · 手部生理参数</span>
+        <div class="conf-row">
+          <span
+            style="font-family:var(--font-mono);font-size:9px;color:var(--ink3);letter-spacing:.5px">CONFIDENCE</span>
+          <div class="conf-bar-bg">
+            <div id="confBar"></div>
+          </div>
+          <span id="confVal">0%</span>
+        </div>
+      </div>
+
+      <!-- ── Calibration bar ─────────────────────────────── -->
+      <div id="calibBar">
+        <label>校准 · 手长（腕→中指尖）</label>
+        <input id="calibInput" type="number" min="100" max="250" step="1" placeholder="mm" />
+        <span id="calibUnit">mm</span>
+        <button id="calibBtn" onclick="applyCalib()">✓ 确认</button>
+        <span id="calibStatus" class="warn">⚠ 未校准（结果为估算）</span>
+      </div>
+
+      <div class="data-grid">
+        <!-- 8 metric cards -->
+        <div class="dc" id="dc-hl">
+          <div class="dc-lbl">手长 Hand</div>
+          <div>
+            <div class="dc-val" id="v-hl">--</div>
+            <div class="dc-unit">mm</div>
+          </div>
+          <div>
+            <div class="dc-bar">
+              <div class="dc-fill" id="b-hl"></div>
+            </div>
+            <div class="dc-pct" id="p-hl"></div>
+          </div>
+        </div>
+        <div class="dc" id="dc-pw">
+          <div class="dc-lbl">掌宽 Palm W</div>
+          <div>
+            <div class="dc-val" id="v-pw">--</div>
+            <div class="dc-unit">mm</div>
+          </div>
+          <div>
+            <div class="dc-bar">
+              <div class="dc-fill" id="b-pw"></div>
+            </div>
+            <div class="dc-pct" id="p-pw"></div>
+          </div>
+        </div>
+        <div class="dc" id="dc-th">
+          <div class="dc-lbl">拇指 Thumb</div>
+          <div>
+            <div class="dc-val" id="v-th">--</div>
+            <div class="dc-unit">mm</div>
+          </div>
+          <div>
+            <div class="dc-bar">
+              <div class="dc-fill" id="b-th"></div>
+            </div>
+            <div class="dc-pct" id="p-th"></div>
+          </div>
+        </div>
+        <div class="dc" id="dc-ix">
+          <div class="dc-lbl">食指 Index</div>
+          <div>
+            <div class="dc-val" id="v-ix">--</div>
+            <div class="dc-unit">mm</div>
+          </div>
+          <div>
+            <div class="dc-bar">
+              <div class="dc-fill" id="b-ix"></div>
+            </div>
+            <div class="dc-pct" id="p-ix"></div>
+          </div>
+        </div>
+        <div class="dc" id="dc-mi">
+          <div class="dc-lbl">中指 Middle</div>
+          <div>
+            <div class="dc-val" id="v-mi">--</div>
+            <div class="dc-unit">mm</div>
+          </div>
+          <div>
+            <div class="dc-bar">
+              <div class="dc-fill" id="b-mi"></div>
+            </div>
+            <div class="dc-pct" id="p-mi"></div>
+          </div>
+        </div>
+        <div class="dc" id="dc-ri">
+          <div class="dc-lbl">无名指 Ring</div>
+          <div>
+            <div class="dc-val" id="v-ri">--</div>
+            <div class="dc-unit">mm</div>
+          </div>
+          <div>
+            <div class="dc-bar">
+              <div class="dc-fill" id="b-ri"></div>
+            </div>
+            <div class="dc-pct" id="p-ri"></div>
+          </div>
+        </div>
+        <div class="dc" id="dc-pk">
+          <div class="dc-lbl">小指 Pinky</div>
+          <div>
+            <div class="dc-val" id="v-pk">--</div>
+            <div class="dc-unit">mm</div>
+          </div>
+          <div>
+            <div class="dc-bar">
+              <div class="dc-fill" id="b-pk"></div>
+            </div>
+            <div class="dc-pct" id="p-pk"></div>
+          </div>
+        </div>
+        <div class="dc" id="dc-sp">
+          <div class="dc-lbl">展开跨度 Span</div>
+          <div>
+            <div class="dc-val" id="v-sp">--</div>
+            <div class="dc-unit">mm</div>
+          </div>
+          <div>
+            <div class="dc-bar">
+              <div class="dc-fill" id="b-sp"></div>
+            </div>
+            <div class="dc-pct" id="p-sp"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /layout -->
+
+  <!-- ═══════ MEDIAPIPE SCRIPTS (local node_modules) ═══════ -->
+  <script src="./node_modules/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="./node_modules/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="./node_modules/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <!-- ═══════ THREE.JS IMPORT MAP (本地 node_modules，无需 CDN) ══════════════════════════ -->
+  <script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js",
+    "three/addons/": "./node_modules/three/examples/jsm/"
+  }
+}
+</script>
+
+  <!-- ═══════ MAIN MODULE ═══════════════════════════════════ -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    /* ─────────────────────────────────────────────────────────
+       ANTHROPOMETRIC REFERENCE (Chinese adults, P5–P95, mm)
+    ───────────────────────────────────────────────────────── */
+    const REF = {
+      handLength: { min: 163, max: 198, avg: 180 },
+      palmWidth: { min: 74, max: 92, avg: 83 },
+      thumbLength: { min: 55, max: 75, avg: 65 },
+      indexLength: { min: 62, max: 82, avg: 72 },
+      middleLength: { min: 70, max: 90, avg: 80 },
+      ringLength: { min: 65, max: 85, avg: 75 },
+      pinkyLength: { min: 48, max: 68, avg: 58 },
+      thumbSpan: { min: 160, max: 220, avg: 190 },
+    };
+
+    /* ─────────────────────────────────────────────────────────
+       CALIBRATION  — user provides actual hand length (mm)
+       Every frame: mmPerPx = calib.handLengthMm / handLengthPx
+       This auto-adapts to any camera distance automatically.
+    ───────────────────────────────────────────────────────── */
+    const calib = {
+      handLengthMm: null,   // null → fallback to population avg
+    };
+
+    /* ── 底部校准栏"确认"（测量进行中 / 锁定后均可调用） ── */
+    window.applyCalib = function () {
+      const v = parseFloat(document.getElementById('calibInput').value);
+      const st = document.getElementById('calibStatus');
+      if (!v || v < 100 || v > 250) {
+        st.className = 'warn';
+        st.textContent = '⚠ 请输入 100–250 mm 之间的数值';
+        return;
+      }
+
+      /* 已锁定：按比例重算所有数据 */
+      if (S.locked && S.lockedCalib && S.lockedCalib !== v) {
+        const ratio = v / S.lockedCalib;
+        Object.keys(S.tgt).forEach(k => {
+          S.tgt[k] = (k === 'handLength') ? v : S.tgt[k] * ratio;
+          S.cur[k] = S.tgt[k];   // 立即生效，不等插值
+        });
+        S.lockedCalib = v;
+        /* 用新尺寸重建握姿模型 */
+        rebuildGripModel();
+        /* 刷新数据卡片 */
+        updateUI(S.tgt);
+      }
+
+      calib.handLengthMm = v;
+      st.className = 'ok';
+      st.textContent = `✓ 已校准：手长 ${v} mm`;
+    };
+
+    /* ── 进入页面时"步骤1"确认（同步到底部校准栏，解锁开始按钮） ── */
+    window.applySetupCalib = function () {
+      const input = document.getElementById('setupInput');
+      const status = document.getElementById('setupStatus');
+      const v = parseFloat(input.value);
+      if (!v || v < 100 || v > 250) {
+        status.className = 'warn';
+        status.textContent = '⚠ 请输入 100–250 mm 之间的数值';
+        return;
+      }
+      /* 同步到底部校准栏 */
+      calib.handLengthMm = v;
+      document.getElementById('calibInput').value = v;
+      document.getElementById('calibStatus').className = 'ok';
+      document.getElementById('calibStatus').textContent = `✓ 已校准：手长 ${v} mm`;
+
+      status.className = 'ok';
+      status.textContent = `✓ 手长 ${v} mm 已记录`;
+
+      /* 解锁开始按钮 */
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('startSub').textContent = '将双手完全展开平放置于摄像头前';
+    };
+
+    /* ─────────────────────────────────────────────────────────
+       GLOBAL STATE
+    ───────────────────────────────────────────────────────── */
+    const S = {
+      running: false,
+      confidence: 0,
+      handsN: 0,
+      wireframe: false,
+      autoRotate: false,
+      mirrored: false,
+      fps: 0, frames: 0, fpsT: performance.now(),
+      /* measurement targets (raw from MP, lerp'd into .cur) */
+      tgt: {
+        handLength: 180, palmWidth: 83, thumbLength: 65,
+        indexLength: 72, middleLength: 80, ringLength: 75,
+        pinkyLength: 58, thumbSpan: 190
+      },
+      /* current interpolated values driving the 3D model    */
+      cur: {
+        handLength: 180, palmWidth: 83, thumbLength: 65,
+        indexLength: 72, middleLength: 80, ringLength: 75,
+        pinkyLength: 58, thumbSpan: 190
+      },
+      /* calibration / display mode */
+      displayMode: 'calib',    // 'calib' | 'grip'
+      qualityScore: 0,
+      highQualityT: 0,         // ms sustained at high quality (legacy, kept for safety)
+      currentPose: 'grip_normal',
+      calibTiltZ: 0,           // detected hand tilt for calib model
+      /* lock-in flow */
+      locked: false,           // true after 5s static high-quality → measurements frozen
+      lockT: 0,                // ms accumulated static+high-quality time
+      lastLms: null,           // landmark snapshot from previous frame for static detection
+      lockedCalib: null,       // calib.handLengthMm at lock-in time (for proportional rescale)
+    };
+
+    /* ─────────────────────────────────────────────────────────
+       THREE.JS SETUP
+    ───────────────────────────────────────────────────────── */
+    let renderer, scene, camera, orbitCtrl, handGroup;
+    let mats = {};
+    let idleT = 0;
+    // bone-driven rigs
+    let calibGroup = null, gripGroup = null;
+    let calibRigs = [];   // [{rig, fbones}] × 2 (left+right)
+    let gripRig = null; // {rig, fbones} single hand
+    let phoneGroup = null;
+
+    function initThree() {
+      const canvas = document.getElementById('threeCanvas');
+      const panel = canvas.parentElement;
+      const W = Math.max(1, panel.clientWidth), H = Math.max(1, panel.clientHeight - 34);
+
+      /* Scene */
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xfafafa);
+      scene.fog = new THREE.FogExp2(0xfafafa, 0.030);
+
+      /* Camera */
+      camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 200);
+      camera.position.set(0, 1.8, 9);
+
+      /* Renderer */
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setSize(W, H);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      /* Lights – flat/neutral for wireframe prototype look */
+      scene.add(new THREE.AmbientLight(0xffffff, 2.8));
+
+      const key = new THREE.DirectionalLight(0xffffff, 2.2);
+      key.position.set(5, 10, 7);
+      key.castShadow = true;
+      scene.add(key);
+
+      const rim = new THREE.DirectionalLight(0xaaaaaa, 1.2);
+      rim.position.set(-5, 3, -5);
+      scene.add(rim);
+
+      /* Grid floor – light gray lines */
+      const grid = new THREE.GridHelper(30, 30, 0xcccccc, 0xe0e0e0);
+      grid.position.y = -4.5;
+      scene.add(grid);
+
+      /* Ground plane */
+      const groundGeo = new THREE.PlaneGeometry(30, 30);
+      const groundMat = new THREE.MeshBasicMaterial({ color: 0xf5f5f5, transparent: true, opacity: .8 });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -4.5;
+      scene.add(ground);
+
+      /* Materials – warm cel-shaded skin (3渲2 anime style) */
+      const gradMap = makeGradientMap();
+      mats.skin = new THREE.MeshToonMaterial({ color: 0xe8a47a, gradientMap: gradMap });
+      mats.joint = new THREE.MeshToonMaterial({ color: 0xd4834e, gradientMap: gradMap });
+      mats.outline = new THREE.MeshBasicMaterial({ color: 0x2d1a0e, side: THREE.BackSide });
+      mats.nail = new THREE.MeshToonMaterial({ color: 0xf5c9a8, gradientMap: gradMap });
+      mats.phone = new THREE.MeshToonMaterial({ color: 0x1a1a2e, gradientMap: gradMap });
+      mats.phoneOutline = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
+
+      /* Controls */
+      orbitCtrl = new OrbitControls(camera, canvas);
+      orbitCtrl.enableDamping = true;
+      orbitCtrl.dampingFactor = 0.06;
+      orbitCtrl.minDistance = 3;
+      orbitCtrl.maxDistance = 25;
+      orbitCtrl.target.set(0, 0, 0);
+
+      /* Build model */
+      buildHand();
+
+      /* Control buttons */
+      document.getElementById('resetBtn').onclick = () => {
+        camera.position.set(0, 1.8, 9);
+        orbitCtrl.target.set(0, 0, 0);
+      };
+      document.getElementById('wireBtn').onclick = () => {
+        S.wireframe = !S.wireframe;
+        scene.traverse(o => {
+          if (o.isMesh && o.material && o.material.isMeshToonMaterial)
+            o.material.wireframe = S.wireframe;
+        });
+        document.getElementById('wireBtn').classList.toggle('active-btn', S.wireframe);
+      };
+      document.getElementById('rotBtn').onclick = () => {
+        S.autoRotate = !S.autoRotate;
+        orbitCtrl.autoRotate = S.autoRotate;
+        orbitCtrl.autoRotateSpeed = 1.5;
+        document.getElementById('rotBtn').style.borderColor =
+          S.autoRotate ? 'var(--acc)' : '';
+      };
+
+      /* Resize */
+      new ResizeObserver(() => {
+        const W2 = Math.max(1, panel.clientWidth), H2 = Math.max(1, panel.clientHeight - 34);
+        camera.aspect = W2 / H2;
+        camera.updateProjectionMatrix();
+        renderer.setSize(W2, H2);
+      }).observe(panel);
+
+      render();
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       GRADIENT MAP  (4-step hard toon)
+    ───────────────────────────────────────────────────────── */
+    function makeGradientMap() {
+      /* 4-step warm skin tone toon gradient (dark shadow → light highlight) */
+      const c = document.createElement('canvas');
+      c.width = 256; c.height = 1;
+      const cx = c.getContext('2d');
+      const steps = ['#c46a3c', '#d4834e', '#e8a47a', '#f5c9a8'];
+      steps.forEach((col, i) => {
+        cx.fillStyle = col;
+        cx.fillRect(i * 64, 0, 64, 1);
+      });
+      const tex = new THREE.CanvasTexture(c);
+      tex.magFilter = tex.minFilter = THREE.NearestFilter;
+      return tex;
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       BUILD LOW-POLY HAND  (data-driven, updatable)
+    ───────────────────────────────────────────────────────── */
+    function addWithOutline(parent, geo, mat, outlineScale = 1.045) {
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true;
+      parent.add(mesh);
+
+      const outGeo = geo.clone();
+      const out = new THREE.Mesh(outGeo, mats.outline);
+      out.scale.setScalar(outlineScale);
+      parent.add(out);
+      return mesh;
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       FINGER CONFIG  (positions in ~1 unit = 83mm palm-width space)
+       spreadY = lateral fan angle (deg), tiltZ = thumb tilt (deg)
+       radii[3] = MCP/PIP/DIP phalanx tube radii
+       proportions[3] = proximal/middle/distal fraction of total length
+    ───────────────────────────────────────────────────────── */
+    const FINGER_CFG = {
+      thumb: { off: [-0.44, 0.08, 0.20], spreadY: -42, tiltZ: 28, radii: [.082, .070, .060], proportions: [.34, .35, .31] },
+      index: { off: [-0.27, 0, -0.55], spreadY: 6, tiltZ: 0, radii: [.075, .064, .053], proportions: [.42, .32, .26] },
+      middle: { off: [0.00, 0, -0.60], spreadY: 0, tiltZ: 0, radii: [.078, .067, .056], proportions: [.42, .32, .26] },
+      ring: { off: [0.26, 0, -0.55], spreadY: -6, tiltZ: 0, radii: [.072, .061, .050], proportions: [.42, .32, .26] },
+      pinky: { off: [0.43, 0, -0.46], spreadY: -12, tiltZ: 0, radii: [.062, .051, .042], proportions: [.40, .33, .27] },
+    };
+
+    /* ─────────────────────────────────────────────────────────
+       POSE DEFINITIONS
+       [mcp_bend, pip_bend, dip_bend, mcp_spread_z]  all radians
+       Positive bend = curl toward palm (-Y direction)
+    ───────────────────────────────────────────────────────── */
+    const POSES = {
+      open: {
+        thumb: [0.20, 0.10, 0.05, -0.28],
+        index: [-0.05, 0.00, 0.00, 0.08],
+        middle: [-0.05, 0.00, 0.00, 0.00],
+        ring: [-0.05, 0.00, 0.00, -0.08],
+        pinky: [-0.05, 0.00, 0.00, -0.15],
+      },
+      grip_normal: {
+        thumb: [0.55, 0.45, 0.30, -0.52],
+        index: [1.20, 0.95, 0.75, 0.00],
+        middle: [1.30, 1.00, 0.80, 0.00],
+        ring: [1.20, 0.95, 0.75, -0.05],
+        pinky: [1.00, 0.80, 0.65, -0.10],
+      },
+      grip_pinky: {
+        thumb: [0.55, 0.45, 0.30, -0.52],
+        index: [1.20, 0.95, 0.75, 0.00],
+        middle: [1.30, 1.00, 0.80, 0.00],
+        ring: [1.20, 0.95, 0.75, -0.05],
+        pinky: [0.10, 0.05, 0.02, 0.32],  // extended + splayed
+      },
+    };
+
+    /* ─────────────────────────────────────────────────────────
+       APPLY POSE  (lerp bones toward target rotations)
+    ───────────────────────────────────────────────────────── */
+    function applyPose(fbones, poseName, lerpFactor) {
+      const pose = POSES[poseName];
+      if (!pose) return;
+      ['thumb', 'index', 'middle', 'ring', 'pinky'].forEach(name => {
+        const entry = fbones[name];
+        if (!entry) return;
+        const { bones } = entry;
+        const [mcpB, pipB, dipB, mcpSpZ] = pose[name] || [0, 0, 0, 0];
+        const L = lerpFactor;
+        if (bones[0]) {
+          bones[0].rotation.x += (mcpB - bones[0].rotation.x) * L;
+          bones[0].rotation.z += (mcpSpZ - bones[0].rotation.z) * L;
+        }
+        if (bones[1]) bones[1].rotation.x += (pipB - bones[1].rotation.x) * L;
+        if (bones[2]) bones[2].rotation.x += (dipB - bones[2].rotation.x) * L;
+      });
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       GLB HAND MODEL  —  测量数据 → 骨骼驱动
+    ───────────────────────────────────────────────────────── */
+    let glbModel = null;
+    let glbBones = {};   // boneName → THREE.Bone (右手)
+
+    /* 拉伸骨 → 测量字段映射 */
+    const FINGER_LENGTH_BONES = {
+      indexLength: 'Finger Length Index.R',
+      middleLength: 'Finger Length Middle.R',
+      ringLength: 'Finger Length Ring.R',
+      pinkyLength: 'Finger Length Pinky.R',
+      thumbLength: 'Thumb Proportions.R',
+    };
+
+    /* GLB 握姿：Finger * 1/2/3.R 绕 X 轴旋转（Blender 标准弯曲轴） */
+    const GLB_POSES = {
+      open: {
+        'Finger Index 1.R': 0, 'Finger Index 2.R': 0, 'Finger Index 3.R': 0,
+        'Finger Middle 1.R': 0, 'Finger Middle 2.R': 0, 'Finger Middle 3.R': 0,
+        'Finger Ring 1.R': 0, 'Finger Ring 2.R': 0, 'Finger Ring 3.R': 0,
+        'Finger Pinky 1.R': 0, 'Finger Pinky 2.R': 0, 'Finger Pinky 3.R': 0,
+        'Thumb 1.R': 0.25, 'Thumb 2.R': 0.15,
+      },
+      grip_normal: {
+        'Finger Index 1.R': -1.1, 'Finger Index 2.R': -0.95, 'Finger Index 3.R': -0.75,
+        'Finger Middle 1.R': -1.2, 'Finger Middle 2.R': -1.0, 'Finger Middle 3.R': -0.8,
+        'Finger Ring 1.R': -1.1, 'Finger Ring 2.R': -0.95, 'Finger Ring 3.R': -0.75,
+        'Finger Pinky 1.R': -1.0, 'Finger Pinky 2.R': -0.85, 'Finger Pinky 3.R': -0.65,
+        'Thumb 1.R': -0.5, 'Thumb 2.R': -0.4,
+      },
+      grip_pinky: {
+        'Finger Index 1.R': -1.1, 'Finger Index 2.R': -0.95, 'Finger Index 3.R': -0.75,
+        'Finger Middle 1.R': -1.2, 'Finger Middle 2.R': -1.0, 'Finger Middle 3.R': -0.8,
+        'Finger Ring 1.R': -1.1, 'Finger Ring 2.R': -0.95, 'Finger Ring 3.R': -0.75,
+        /* 小指伸直外展 */
+        'Finger Pinky 1.R': 0.05, 'Finger Pinky 2.R': 0, 'Finger Pinky 3.R': 0,
+        'Thumb 1.R': -0.5, 'Thumb 2.R': -0.4,
+      },
+    };
+
+    function loadHandGLB() {
+      const loader = new GLTFLoader();
+      loader.load('./hand.glb',
+        gltf => {
+          glbModel = gltf.scene;
+          const gradMap = makeGradientMap();
+
+          /* ── 遍历：建骨骼字典 + 替换卡通材质 ── */
+          glbModel.traverse(obj => {
+            if (obj.isBone) glbBones[obj.name] = obj;
+            if (obj.isSkinnedMesh) {
+              obj.material = new THREE.MeshToonMaterial({
+                color: 0xe8a47a,
+                gradientMap: gradMap,
+              });
+              obj.castShadow = true;
+            }
+          });
+
+          /* ── 自动缩放：让整体高度 ≈ 4 个单位 ── */
+          const box = new THREE.Box3().setFromObject(glbModel);
+          const sz = box.getSize(new THREE.Vector3());
+          const sc = 4.0 / Math.max(sz.x, sz.y, sz.z);
+          glbModel.scale.setScalar(sc);
+
+          /* ── 居中偏移：把右手腕推到视图中央 ── */
+          box.setFromObject(glbModel); // 重算 box（已缩放）
+          const ctr = box.getCenter(new THREE.Vector3());
+          glbModel.position.set(-ctr.x, -ctr.y, -ctr.z);
+
+          /* ── 找到 Wrist.R 世界坐标，调整 OrbitControls 目标 ── */
+          const wristBone = glbBones['Wrist.R'];
+          if (wristBone) {
+            const wp = new THREE.Vector3();
+            wristBone.getWorldPosition(wp);
+            orbitCtrl.target.copy(wp);
+            camera.position.set(wp.x + 1.5, wp.y + 0.5, wp.z + 3.5);
+            orbitCtrl.update();
+          }
+
+          gripGroup.add(glbModel);
+
+          /* ── 初始化：应用当前测量值和姿势 ── */
+          applyMeasurementsToGLB(S.cur);
+          applyGLBPose(S.currentPose, 1.0);
+
+          console.log('[PalmScan] GLB loaded ✓  骨骼数:', Object.keys(glbBones).length);
+        },
+        undefined,
+        err => console.error('[PalmScan] GLB load failed:', err)
+      );
+    }
+
+    /* 测量数据 → 指节拉伸骨缩放 */
+    function applyMeasurementsToGLB(d) {
+      if (!glbModel) return;
+
+      /* 各手指长度 */
+      Object.entries(FINGER_LENGTH_BONES).forEach(([mKey, boneName]) => {
+        const bone = glbBones[boneName];
+        if (!bone) return;
+        const ratio = d[mKey] / REF[mKey].avg;
+        bone.scale.set(1, ratio, 1);   // Blender→GLTF: 骨骼沿本地 Y 轴延伸
+      });
+
+      /* 掌宽：Wrist.R X 轴缩放 */
+      const wrist = glbBones['Wrist.R'];
+      if (wrist) wrist.scale.x = d.palmWidth / REF.palmWidth.avg;
+
+      /* 掌长（腕→指关节）：Metacarpals.R Y 轴 */
+      const metas = glbBones['Metacarpals.R'];
+      if (metas) metas.scale.y = (d.handLength * 0.42) / (REF.handLength.avg * 0.42);
+    }
+
+    /* GLB 握姿插值 */
+    function applyGLBPose(poseName, lerpFactor) {
+      const pose = GLB_POSES[poseName];
+      if (!pose || !glbModel) return;
+      Object.entries(pose).forEach(([boneName, angle]) => {
+        const b = glbBones[boneName];
+        if (!b) return;
+        b.rotation.x += (angle - b.rotation.x) * lerpFactor;
+      });
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       BUILD A SINGLE HAND RIG  (bone hierarchy)
+       segs  = cylinder segments (6 = calib/low-poly, 9 = grip/high)
+       flipX = true → left hand (mirror X offsets + angles)
+    ───────────────────────────────────────────────────────── */
+    function buildHandRig(segs, flipX) {
+      const rig = new THREE.Group();
+      const fbones = {};
+      const d = S.cur;
+      const N = 1 / 83;
+
+      /* ── Palm ── */
+      const pw = (d.palmWidth / 83) * 0.92;
+      const pd = (d.handLength / 180) * 1.22;
+      const pth = 0.19;
+      const shape = new THREE.Shape();
+      const hw = pw * 0.5, hd = pd * 0.5;
+      shape.moveTo(-hw * .78, -hd);
+      shape.bezierCurveTo(-hw * 1.02, -hd * .4, -hw * 1.05, hd * .3, -hw * .88, hd);
+      shape.lineTo(hw * .88, hd);
+      shape.bezierCurveTo(hw * 1.05, hd * .3, hw * 1.02, -hd * .4, hw * .78, -hd);
+      shape.closePath();
+      const palmGeo = new THREE.ExtrudeGeometry(shape, {
+        depth: pth, bevelEnabled: true,
+        bevelThickness: .045, bevelSize: .045, bevelSegments: 2,
+      });
+      palmGeo.rotateX(Math.PI * .5);
+      palmGeo.translate(0, -pth * .5, 0);
+      if (flipX) palmGeo.scale(-1, 1, 1);
+      addWithOutline(rig, palmGeo, mats.skin);
+
+      /* Wrist */
+      const wGeo = new THREE.CylinderGeometry(pw * .30, pw * .36, pth * 1.6, segs);
+      const wM = addWithOutline(rig, wGeo, mats.skin);
+      wM.position.set(0, 0, pd * .54);
+
+      /* ── Fingers ── */
+      const fingerNames = ['thumb', 'index', 'middle', 'ring', 'pinky'];
+      const fingerMm = {
+        thumb: d.thumbLength, index: d.indexLength, middle: d.middleLength,
+        ring: d.ringLength, pinky: d.pinkyLength,
+      };
+
+      fingerNames.forEach(name => {
+        const cfg = FINGER_CFG[name];
+        const lenMm = fingerMm[name];
+        const fingerGroup = new THREE.Group();
+        fingerGroup.name = name;
+
+        /* position & orient the finger group */
+        const ox = flipX ? -cfg.off[0] : cfg.off[0];
+        fingerGroup.position.set(ox, cfg.off[1], cfg.off[2]);
+        const sy = THREE.MathUtils.degToRad(flipX ? -cfg.spreadY : cfg.spreadY);
+        const tz = THREE.MathUtils.degToRad(flipX ? -cfg.tiltZ : cfg.tiltZ);
+        fingerGroup.rotation.y = sy;
+        if (name === 'thumb') fingerGroup.rotation.z = tz;
+
+        rig.add(fingerGroup);
+
+        /* Build MCP → PIP → DIP bone chain */
+        const bones = [];
+        let parentNode = fingerGroup;
+        let segLen = 0; // length of CURRENT segment (for next bone offset)
+
+        cfg.proportions.forEach((ratio, si) => {
+          const segMm = lenMm * ratio;
+          const segU = segMm * N;
+          const r = cfg.radii[si];
+
+          /* bone pivot: placed at end of previous segment */
+          const bone = new THREE.Object3D();
+          bone.position.set(0, 0, -segLen);  // relative to parent
+          parentNode.add(bone);
+          bones.push(bone);
+
+          /* joint sphere at bone origin */
+          const jsegs = Math.max(5, segs);
+          const jGeo = new THREE.SphereGeometry(r * 1.08, jsegs, Math.ceil(jsegs * .7));
+          addWithOutline(bone, jGeo, mats.joint);
+
+          /* phalanx cylinder: pivot at proximal end (0), tip at -segU */
+          const cGeo = new THREE.CylinderGeometry(r * .84, r, segU, segs, 1);
+          cGeo.rotateX(Math.PI / 2);
+          cGeo.translate(0, 0, -segU / 2);
+          addWithOutline(bone, cGeo, mats.skin);
+
+          parentNode = bone;
+          segLen = segU;
+        });
+
+        /* Fingertip + nail on the DIP bone */
+        const lastBone = bones[2];
+        const lastR = cfg.radii[2];
+        const lastSegU = cfg.proportions[2] * lenMm * N;
+
+        const tipGeo = new THREE.SphereGeometry(lastR * .90, segs, Math.ceil(segs * .7));
+        const tipM = new THREE.Mesh(tipGeo, mats.skin);
+        tipM.scale.set(1, .72, 1);
+        tipM.position.set(0, 0, -lastSegU);
+        lastBone.add(tipM);
+        const tipOut = new THREE.Mesh(tipGeo.clone(), mats.outline);
+        tipOut.scale.set(1.06, .72 * 1.06, 1.06);
+        tipOut.position.copy(tipM.position);
+        lastBone.add(tipOut);
+
+        /* Nail plate */
+        const nGeo = new THREE.BoxGeometry(lastR * 1.4, lastR * .22, lastR * 1.1);
+        const nail = new THREE.Mesh(nGeo, mats.nail);
+        nail.position.set(0, lastR * .65, -lastSegU + lastR * .08);
+        lastBone.add(nail);
+
+        fbones[name] = { bones, group: fingerGroup };
+      });
+
+      return { rig, fbones };
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       PHONE PROP
+    ───────────────────────────────────────────────────────── */
+    function buildPhone() {
+      const g = new THREE.Group();
+      /* body */
+      const bodyGeo = new THREE.BoxGeometry(0.76, 1.58, 0.076);
+      g.add(new THREE.Mesh(bodyGeo, mats.phone));
+      /* screen */
+      const scrGeo = new THREE.BoxGeometry(0.65, 1.40, 0.01);
+      const scrMat = new THREE.MeshBasicMaterial({ color: 0x1e3650 });
+      const scr = new THREE.Mesh(scrGeo, scrMat);
+      scr.position.z = 0.044;
+      g.add(scr);
+      /* camera dot */
+      const camGeo = new THREE.CircleGeometry(0.03, 8);
+      const camMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0a });
+      const camM = new THREE.Mesh(camGeo, camMat);
+      camM.position.set(0, 0.65, 0.045);
+      g.add(camM);
+      /* outline */
+      const outGeo = new THREE.BoxGeometry(0.78, 1.60, 0.082);
+      g.add(new THREE.Mesh(outGeo, mats.phoneOutline));
+      return g;
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       BUILD COMPLETE HAND SCENE  (calib + grip groups)
+    ───────────────────────────────────────────────────────── */
+    function buildHand() {
+      if (calibGroup) scene.remove(calibGroup);
+      if (gripGroup) scene.remove(gripGroup);
+      calibGroup = new THREE.Group();
+      gripGroup = new THREE.Group();
+      calibRigs = [];
+
+      /* ── CALIB MODE: two back-facing hands (low-poly, segs=6) ── */
+      const rightCalib = buildHandRig(8, false);
+      rightCalib.rig.position.set(2.5, 0, 0);
+      rightCalib.rig.rotation.y = Math.PI;    // back of hand faces viewer
+      calibGroup.add(rightCalib.rig);
+      calibRigs.push(rightCalib);
+
+      const leftCalib = buildHandRig(8, true);
+      leftCalib.rig.position.set(-2.5, 0, 0);
+      leftCalib.rig.rotation.y = Math.PI;
+      calibGroup.add(leftCalib.rig);
+      calibRigs.push(leftCalib);
+
+      calibRigs.forEach(r => applyPose(r.fbones, 'open', 1.0));
+      calibGroup.rotation.x = -Math.PI * .05;
+      scene.add(calibGroup);
+
+      /* ── GRIP MODE: 程序化高精度手部模型 + 手机道具 ── */
+      const gripResult = buildHandRig(9, false);
+      gripRig = gripResult;
+      gripRig.rig.position.set(1.2, 0, 0);
+      gripGroup.add(gripRig.rig);
+      /* 手机道具：手持手机场景 */
+      phoneGroup = buildPhone();
+      phoneGroup.position.set(-0.65, 0.2, 0.1);
+      phoneGroup.rotation.x = 0.12;
+      phoneGroup.rotation.z = 0.08;
+      gripGroup.add(phoneGroup);
+      applyPose(gripRig.fbones, S.currentPose, 1.0);
+      scene.add(gripGroup);
+
+      /* visibility */
+      calibGroup.visible = (S.displayMode === 'calib');
+      gripGroup.visible = (S.displayMode === 'grip');
+      handGroup = S.displayMode === 'calib' ? calibGroup : gripGroup;
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       POSE SWITCH (called from HTML buttons)
+    ───────────────────────────────────────────────────────── */
+    window.setPose = function (poseName) {
+      S.currentPose = poseName;
+      document.querySelectorAll('.pbtn').forEach(b => b.classList.remove('active-pose'));
+      const id = poseName === 'grip_normal' ? 'poseNormal' : 'posePinky';
+      document.getElementById(id).classList.add('active-pose');
+    };
+
+    window.recalibrate = function () {
+      S.displayMode = 'calib';
+      S.qualityScore = 0;
+      S.highQualityT = 0;
+      S.locked = false;
+      S.lockT = 0;
+      S.lastLms = null;
+      S.lockedCalib = null;
+      calibGroup.visible = true;
+      gripGroup.visible = false;
+      handGroup = calibGroup;
+      document.getElementById('modeBadge').textContent = '校准模式';
+      document.getElementById('modeBadge').className = 'calib-mode';
+      document.getElementById('poseRow').classList.add('hidden');
+      document.getElementById('threeCanvas').classList.remove('grip');
+      document.getElementById('recalibBtn').style.display = 'none';
+      /* 恢复质量条样式 */
+      const qFill = document.getElementById('qualityFill');
+      qFill.classList.remove('counting', 'locked');
+      qFill.style.width = '0%';
+      document.getElementById('qualityPct').textContent = '0%';
+      document.getElementById('qualityHint').textContent = '展开双手掌心朝前';
+      document.querySelector('.quality-label').textContent = '校准进度';
+    };
+
+    /* ─────────────────────────────────────────────────────────
+       STATIC DETECTION
+       Returns true if all tracked hands barely moved since last frame.
+       threshold: max allowed landmark displacement (normalized 0-1 coords)
+    ───────────────────────────────────────────────────────── */
+    function isHandStatic(currentLms, prevLms, threshold = 0.012) {
+      if (!prevLms || !currentLms || currentLms.length === 0) return false;
+      const hands = Math.min(currentLms.length, prevLms.length);
+      if (hands === 0) return false;
+      for (let h = 0; h < hands; h++) {
+        const cur = currentLms[h], prev = prevLms[h];
+        if (!cur || !prev) continue;
+        for (let i = 0; i < 21; i++) {
+          const dx = cur[i].x - prev[i].x;
+          const dy = cur[i].y - prev[i].y;
+          if (Math.sqrt(dx * dx + dy * dy) > threshold) return false;
+        }
+      }
+      return true;
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       REBUILD GRIP MODEL  — 用 S.cur 重建程序化高精度手部+手机道具
+       可在 lockInMeasurements() 和手长重校准后调用
+    ───────────────────────────────────────────────────────── */
+    function rebuildGripModel() {
+      if (gripRig) gripGroup.remove(gripRig.rig);
+      if (phoneGroup) gripGroup.remove(phoneGroup);
+
+      const gripResult = buildHandRig(9, false);
+      gripRig = gripResult;
+      gripRig.rig.position.set(1.2, 0, 0);
+      gripGroup.add(gripRig.rig);
+
+      phoneGroup = buildPhone();
+      phoneGroup.position.set(-0.65, 0.2, 0.1);
+      phoneGroup.rotation.x = 0.12;
+      phoneGroup.rotation.z = 0.08;
+      gripGroup.add(phoneGroup);
+
+      applyPose(gripRig.fbones, S.currentPose, 1.0);
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       LOCK-IN  — called once when quality + static threshold met
+       Snaps measurements, rebuilds grip model, switches display mode.
+    ───────────────────────────────────────────────────────── */
+    function lockInMeasurements() {
+      /* Snap cur → tgt so grip model uses final measurements */
+      Object.keys(S.tgt).forEach(k => { S.cur[k] = S.tgt[k]; });
+
+      /* Save calib at lock-in time (for proportional rescaling later) */
+      S.lockedCalib = calib.handLengthMm || S.tgt.handLength;
+
+      /* Rebuild grip model with locked measurements */
+      rebuildGripModel();
+
+      /* Switch display mode */
+      S.displayMode = 'grip';
+      calibGroup.visible = false;
+      gripGroup.visible = true;
+      handGroup = gripGroup;
+
+      /* Update header UI */
+      document.getElementById('modeBadge').textContent = '已锁定 · 握姿展示';
+      document.getElementById('modeBadge').className = 'grip-mode';
+      document.getElementById('poseRow').classList.remove('hidden');
+      document.getElementById('threeCanvas').classList.add('grip');
+      document.getElementById('recalibBtn').style.display = 'inline-block';
+
+      /* Quality bar: locked state */
+      const qFill = document.getElementById('qualityFill');
+      qFill.classList.remove('counting', 'full');
+      qFill.classList.add('locked');
+      qFill.style.width = '100%';
+      document.getElementById('qualityPct').textContent = '✓';
+      document.getElementById('qualityHint').textContent = '数据已锁定';
+      document.querySelector('.quality-label').textContent = '已完成';
+
+      /* 提交测量结果到上层页面 (React 应用) */
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'PALMSCAN_RESULT', payload: S.tgt }, '*');
+      }
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       UPDATE 3D MODEL (called each frame)
+    ───────────────────────────────────────────────────────── */
+    function updateHandGeometry() {
+      const POSE_LERP = 0.06;
+      if (S.displayMode === 'grip') {
+        /* 程序化模式：握姿插值（手指弯曲/展开） */
+        if (gripRig) applyPose(gripRig.fbones, S.currentPose, POSE_LERP);
+      }
+      if (S.displayMode === 'calib') {
+        calibRigs.forEach(r => applyPose(r.fbones, 'open', POSE_LERP));
+        if (calibGroup) {
+          calibGroup.rotation.z += (S.calibTiltZ - calibGroup.rotation.z) * 0.08;
+        }
+      }
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       RENDER LOOP
+    ───────────────────────────────────────────────────────── */
+    function render() {
+      requestAnimationFrame(render);
+
+      /* Smooth lerp measurements */
+      const LERP = 0.09;
+      Object.keys(S.tgt).forEach(k => {
+        S.cur[k] += (S.tgt[k] - S.cur[k]) * LERP;
+      });
+      updateHandGeometry();
+
+      /* Idle float */
+      idleT += 0.007;
+      const activeGrp = S.displayMode === 'calib' ? calibGroup : gripGroup;
+      if (activeGrp) {
+        activeGrp.position.y = Math.sin(idleT) * 0.06;
+        if (!S.autoRotate)
+          activeGrp.rotation.y += (Math.sin(idleT * .4) * 0.04 - activeGrp.rotation.y) * 0.012;
+      }
+
+      /* 校准 → 握姿 切换由 onResults 的 lock-in 逻辑处理，此处无需操作 */
+
+      /* FPS */
+      S.frames++;
+      const now = performance.now();
+      if (now - S.fpsT >= 1000) {
+        S.fps = S.frames; S.frames = 0; S.fpsT = now;
+        document.getElementById('fpsTag').textContent = `3D·${S.fps}fps`;
+      }
+
+      orbitCtrl.update();
+      renderer.render(scene, camera);
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       MEDIAPIPE HANDS
+    ───────────────────────────────────────────────────────── */
+    let mpHands, mpCamera;
+
+    window.startCapture = function () {
+      document.getElementById('startOverlay').classList.add('hidden');
+      document.getElementById('loadOverlay').classList.remove('hidden');
+      document.getElementById('stopBtn').style.display = 'block';
+      S.running = true;
+      initMediaPipe();
+    };
+
+    window.stopCapture = function () {
+      S.running = false;
+      /* release all camera tracks so other apps can use the camera */
+      const video = document.getElementById('videoEl');
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+      }
+      if (mpCamera) { try { mpCamera.stop(); } catch (_) { } mpCamera = null; }
+      document.getElementById('startOverlay').classList.remove('hidden');
+      document.getElementById('stopBtn').style.display = 'none';
+      document.getElementById('liveBadge').textContent = 'STANDBY';
+      document.getElementById('liveBadge').className = 'pbadge';
+      document.getElementById('dCam').className = 'dot';
+      document.getElementById('dModel').className = 'dot';
+      document.getElementById('dDet').className = 'dot';
+      /* reset model banner */
+      const mb = document.getElementById('modelBanner');
+      mb.classList.add('hidden'); mb.classList.remove('err');
+      document.getElementById('modelBannerTxt').textContent = 'AI MODEL LOADING…';
+    };
+
+    /* ── Resolution fallback list ──────────────────────────── */
+    const CAM_CONSTRAINTS = [
+      { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+      { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+      { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
+      { facingMode: 'user' },   // let browser choose anything
+      true,                    // absolute last resort – any camera
+    ];
+
+    async function tryGetUserMedia() {
+      for (const constraints of CAM_CONSTRAINTS) {
+        try {
+          return await navigator.mediaDevices.getUserMedia({ video: constraints });
+        } catch (e) {
+          const fatal = ['NotFoundError', 'DevicesNotFoundError',
+            'NotAllowedError', 'PermissionDeniedError'];
+          if (fatal.includes(e.name)) throw e;   // no point retrying
+          console.warn('[PalmScan] camera constraint failed, trying next:', e.name);
+        }
+      }
+      throw new Error('Could not open any camera.');
+    }
+
+    async function initMediaPipe() {
+      const video = document.getElementById('videoEl');
+      const canvas = document.getElementById('camCanvas');
+      const ctx = canvas.getContext('2d');
+
+      /* ── Helper: abort & reset UI to start screen ────────── */
+      function abortWithMsg(msg) {
+        if (video.srcObject) {
+          video.srcObject.getTracks().forEach(t => t.stop());
+          video.srcObject = null;
+        }
+        document.getElementById('loadOverlay').classList.add('hidden');
+        document.getElementById('startOverlay').classList.remove('hidden');
+        document.getElementById('stopBtn').style.display = 'none';
+        S.running = false;
+        alert('⚠️ ' + msg);
+      }
+
+      /* ── 1. Release any existing stream ─────────────────── */
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+        await new Promise(r => setTimeout(r, 120));   // brief pause for OS release
+      }
+
+      /* ── 2. Check MediaPipe scripts are loaded ───────────── */
+      if (typeof window.Hands !== 'function') {
+        abortWithMsg('AI 模型脚本未加载完成，请检查网络连接后刷新页面重试。\n（如在中国大陆，建议开启代理后再试）');
+        return;
+      }
+
+      /* ── 3. Open camera with fallback resolutions ────────── */
+      let stream;
+      try {
+        stream = await tryGetUserMedia();
+      } catch (err) {
+        const msg = {
+          NotAllowedError: '摄像头访问被拒绝，请在浏览器地址栏点击🔒图标，允许摄像头权限后刷新。',
+          PermissionDeniedError: '摄像头权限被拒绝，请检查浏览器及系统权限设置。',
+          NotFoundError: '未检测到摄像头设备，请确认设备已连接。',
+          DevicesNotFoundError: '未检测到摄像头设备，请确认设备已连接。',
+        }[err.name] || `无法启动摄像头（${err.name}）。\n\n可能原因：\n• 摄像头正被其他应用占用\n• 请关闭其他使用摄像头的程序后重试`;
+        abortWithMsg(msg);
+        return;
+      }
+
+      video.srcObject = stream;
+      try { await video.play(); } catch (_) { }
+
+      /* ── 4. Camera is open — show feed immediately ───────── */
+      document.getElementById('loadOverlay').classList.add('hidden');
+      document.getElementById('dCam').className = 'dot on';
+      document.getElementById('liveBadge').textContent = 'LIVE';
+      document.getElementById('liveBadge').className = 'pbadge live';
+
+      /* ── 5. Init MediaPipe Hands ─────────────────────────── */
+      try {
+        if (mpHands) { try { mpHands.close(); } catch (_) { } }
+        mpHands = new window.Hands({
+          locateFile: f => `./node_modules/@mediapipe/hands/${f}`,
+        });
+        mpHands.setOptions({
+          maxNumHands: 2,
+          modelComplexity: 1,
+          minDetectionConfidence: 0.65,
+          minTrackingConfidence: 0.50,
+        });
+      } catch (err) {
+        abortWithMsg(`AI 模型初始化失败：${err.message}`);
+        return;
+      }
+
+      /* ── 6. Show non-blocking model-loading banner ───────── */
+      let loopActive = true;
+      let modelReady = false;
+      document.getElementById('dModel').className = 'dot pulse';
+      document.getElementById('modelBanner').classList.remove('hidden');
+
+      mpCamera = {
+        stop() {
+          loopActive = false;
+          stream.getTracks().forEach(t => t.stop());
+        }
+      };
+
+      /* First onResults = WASM + model files fully downloaded */
+      const onModelReady = () => {
+        if (modelReady) return;
+        modelReady = true;
+        clearTimeout(modelTimeout);
+        document.getElementById('dModel').className = 'dot on';
+        document.getElementById('modelBanner').classList.add('hidden');
+      };
+
+      mpHands.onResults(res => {
+        onModelReady();
+        onResults(res, canvas, ctx);
+      });
+
+      /* Non-blocking timeout: update banner text, don't use alert() */
+      const modelTimeout = setTimeout(() => {
+        if (!modelReady) {
+          document.getElementById('dModel').className = 'dot';
+          document.getElementById('modelBannerTxt').textContent =
+            '⚠ 模型超时 — 请检查网络或开启代理后刷新';
+          const b = document.getElementById('modelBanner');
+          b.classList.add('err');
+          b.classList.remove('hidden');
+        }
+      }, 15000);
+
+      const tick = async () => {
+        if (!loopActive || !S.running) return;
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 480;
+          try { await mpHands.send({ image: video }); } catch (_) { }
+        }
+        requestAnimationFrame(tick);
+      };
+
+      requestAnimationFrame(tick);
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       HAND QUALITY SCORING  (0–1)
+       Evaluates: finger extension, palm flatness/facing, visibility
+       Returns 0 for fist / back-of-hand / no hands, up to 1.0 for
+       both palms fully open and flat facing camera.
+    ───────────────────────────────────────────────────────── */
+    function computeHandQuality(res) {
+      const lms = res.multiHandLandmarks;
+      if (!lms || lms.length === 0) return { score: 0, hint: '等待检测手部…' };
+
+      let totalScore = 0;
+      let worstHint = '';
+
+      for (const lm of lms) {
+        const w = lm[0]; // wrist
+
+        /* ── 1. Finger extension (4 fingers, excl. thumb) ── */
+        // ratio: wrist→tip / wrist→MCP; fully open ≈ 2.0, fist ≈ 1.0
+        // 宽松阈值：从 1.0 开始得分，0.8 范围内满分
+        const chains = [[5, 8], [9, 12], [13, 16], [17, 20]];
+        let extScore = 0;
+        for (const [mcpI, tipI] of chains) {
+          const tipD = Math.hypot(w.x - lm[tipI].x, w.y - lm[tipI].y);
+          const mcpD = Math.hypot(w.x - lm[mcpI].x, w.y - lm[mcpI].y);
+          const ratio = tipD / (mcpD + 1e-5);
+          extScore += Math.max(0, Math.min(1, (ratio - 1.0) / 0.75));
+        }
+        extScore /= 4;
+
+        /* ── 2. Palm orientation ── */
+        // 单位向量叉积：|crossZ| = sin(θ)，θ 为 wrist→indexMCP 与 wrist→pinkyMCP 夹角
+        // 掌心朝前时手掌展开，两向量夹角约 25-45°，sin ≈ 0.42-0.71
+        // 归一化后 crossZ 范围与距离无关，仅取决于手掌姿态
+        // 掌心朝前 → |crossZ| 大；侧面 / 握拳 → |crossZ| 小
+        const v1x = lm[5].x - w.x, v1y = lm[5].y - w.y;
+        const v2x = lm[17].x - w.x, v2y = lm[17].y - w.y;
+        const v1len = Math.sqrt(v1x * v1x + v1y * v1y) + 1e-6;
+        const v2len = Math.sqrt(v2x * v2x + v2y * v2y) + 1e-6;
+        // 单位向量
+        const u1x = v1x / v1len, u1y = v1y / v1len;
+        const u2x = v2x / v2len, u2y = v2y / v2len;
+        // crossZ = sin(θ)，约 0.42–0.71 for a flat open palm
+        const crossZ = u1x * u2y - u1y * u2x;
+        // 除以 0.42 使良好手势得满分，乘以适度容忍度
+        const palmScore = Math.max(0, Math.min(1, Math.abs(crossZ) / 0.38));
+
+        /* ── 3. Average visibility ── */
+        const vis = lm.reduce((s, l) => s + (l.visibility ?? 0.75), 0) / lm.length;
+
+        // 指伸展权重最高，手掌朝向次之，可见度辅助
+        const handScore = extScore * 0.65 + palmScore * 0.25 + vis * 0.10;
+        totalScore += handScore;
+
+        /* 给用户的引导文字 */
+        if (extScore < 0.35) worstHint = '请展开手指，勿握拳';
+        else if (palmScore < 0.3) worstHint = '请使手掌朝向摄像头';
+        else if (vis < 0.5) worstHint = '请确保手部完整入镜';
+        else worstHint = lms.length >= 2 ? '继续保持双手展开' : '再展开另一只手效果更佳';
+      }
+
+      /* 单手可达 100%；双手额外加成 10% */
+      const base = totalScore / lms.length;
+      const bonus = lms.length >= 2 ? 1.10 : 1.0;
+      const score = Math.min(1, base * bonus);
+
+      /* 手部倾斜估算（用于校准模式 3D 模型对齐） */
+      if (lms.length > 0) {
+        const lm = lms[0];
+        S.calibTiltZ = Math.atan2(lm[9].x - lm[0].x, -(lm[9].y - lm[0].y)) * 0.3;
+      }
+
+      return { score, hint: score >= 0.75 ? '姿势良好，请保持静止…' : worstHint };
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       HAND RESULTS CALLBACK
+    ───────────────────────────────────────────────────────── */
+    const LOCK_DURATION_MS = 5000;  // 5s hold to lock
+    const LOCK_QUALITY_THRESHOLD = 0.75;
+
+    let skipFrame = 0;
+    function onResults(res, canvas, ctx) {
+      /* Draw mirrored video frame */
+      ctx.save();
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(res.image, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+
+      const n = res.multiHandLandmarks ? res.multiHandLandmarks.length : 0;
+      S.handsN = n;
+      document.getElementById('handCountChip').textContent = `HANDS · ${n}`;
+
+      const pill = document.getElementById('detPill');
+      const detDot = document.getElementById('detDot');
+      const detTxt = document.getElementById('detTxt');
+      const dDet = document.getElementById('dDet');
+
+      /* ── Quality score ── */
+      const { score: qScore, hint: qHint } = computeHandQuality(res);
+      S.qualityScore = qScore;
+
+      /* ── Lock-in logic (only in calib mode, not yet locked) ── */
+      const currentLms = res.multiHandLandmarks;
+      if (S.running && !S.locked && S.displayMode === 'calib') {
+        const isStatic = isHandStatic(currentLms, S.lastLms, 0.012);
+        if (qScore >= LOCK_QUALITY_THRESHOLD && isStatic && n > 0) {
+          S.lockT += 35;  // approx ms per frame
+        } else {
+          /* Decay faster if quality drops, slower if just wiggled slightly */
+          S.lockT = Math.max(0, S.lockT - (qScore < 0.5 ? 120 : 50));
+        }
+        /* Snapshot landmarks for next frame comparison */
+        if (currentLms && currentLms.length > 0) {
+          S.lastLms = currentLms.map(h => h.map(p => ({ x: p.x, y: p.y, z: p.z })));
+        } else {
+          S.lastLms = null;
+        }
+        /* Trigger lock-in */
+        if (S.lockT >= LOCK_DURATION_MS) {
+          S.locked = true;
+          lockInMeasurements();
+        }
+      }
+
+      /* ── Quality bar UI ── */
+      const qFill = document.getElementById('qualityFill');
+      const qPctEl = document.getElementById('qualityPct');
+      const qHintEl = document.getElementById('qualityHint');
+      const qLabel = document.querySelector('.quality-label');
+
+      if (S.locked) {
+        /* Already locked — bar stays in locked state */
+        /* (set by lockInMeasurements, nothing to do here) */
+      } else if (S.lockT > 0) {
+        /* Counting down to lock */
+        const lockPct = Math.round((S.lockT / LOCK_DURATION_MS) * 100);
+        const remaining = Math.ceil((LOCK_DURATION_MS - S.lockT) / 1000);
+        qFill.style.width = lockPct + '%';
+        qFill.classList.remove('full', 'locked');
+        qFill.classList.add('counting');
+        qPctEl.textContent = lockPct + '%';
+        qHintEl.textContent = `锁定中… 还需 ${remaining}s`;
+        qLabel.textContent = '锁定进度';
+      } else {
+        /* Normal quality score display */
+        const qPct = Math.round(qScore * 100);
+        qFill.style.width = qPct + '%';
+        qFill.classList.remove('counting', 'locked');
+        qFill.classList.toggle('full', qPct >= 75);
+        qPctEl.textContent = qPct + '%';
+        qHintEl.textContent = qHint;
+        qLabel.textContent = '校准进度';
+      }
+
+      if (n > 0) {
+        pill.className = 'detected ok';
+        detDot.className = 'dot on';
+        detTxt.textContent = `手部已识别 ✓  (${n}只)`;
+        dDet.className = 'dot on';
+        document.getElementById('lmCount').textContent = 'LM: 21/21';
+
+        const lm = res.multiHandLandmarks[0];
+
+        /* Draw skeleton every other frame */
+        skipFrame++;
+        if (skipFrame % 2 === 0) drawSkeleton(ctx, res, canvas);
+
+        /* Update measurements only when NOT locked */
+        if (!S.locked) {
+          const m = calcMeasurements(lm, canvas.width, canvas.height);
+          if (m && m.confidence > 0.45) {
+            S.confidence = m.confidence;
+            Object.keys(S.tgt).forEach(k => { if (m[k]) S.tgt[k] = m[k]; });
+            updateUI(m);
+          }
+        }
+      } else {
+        pill.className = '';
+        detDot.className = 'dot';
+        detTxt.textContent = '等待检测手部…';
+        dDet.className = 'dot';
+        document.getElementById('lmCount').textContent = 'LM: 0/21';
+        if (!S.locked) {
+          S.confidence = 0;
+          updateUI(null);
+        }
+      }
+
+      const pct = Math.round(S.confidence * 100);
+      document.getElementById('confBar').style.width = pct + '%';
+      document.getElementById('confVal').textContent = pct + '%';
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       MEASUREMENT CALCULATION
+       Strategy: palm-width (idx-MCP → pinky-MCP) as reference.
+       Assume avg palm width = 83 mm → derive px/mm scale.
+    ───────────────────────────────────────────────────────── */
+    function d2(a, b, W, H) {
+      const dx = (a.x - b.x) * W, dy = (a.y - b.y) * H;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function calcMeasurements(lm, W, H) {
+      /* ── 手长像素（腕 lm[0] → 中指尖 lm[12]）作为每帧参考 ── */
+      const handLengthPx = d2(lm[0], lm[12], W, H);
+      if (handLengthPx < 40) return null;    // 手太小/被遮挡
+
+      /* ── 确定比例尺 ────────────────────────────────────────
+         已校准：用用户实际手长，不论手距摄像头多远都自动适配
+         未校准：用人群均值 180 mm 估算（结果仅供参考）        */
+      const refMm = calib.handLengthMm ?? REF.handLength.avg;
+      const mmPerPx = refMm / handLengthPx;   // mm / pixel
+
+      /* ── 各测量值（像素 × 比例尺） ─────────────────────── */
+      const px2mm = px => px * mmPerPx;
+
+      const segSum = (...idxs) => {
+        let s = 0;
+        for (let i = 0; i < idxs.length - 1; i++)
+          s += d2(lm[idxs[i]], lm[idxs[i + 1]], W, H);
+        return px2mm(s);
+      };
+
+      const handLength = px2mm(handLengthPx);          // = refMm（校准时精确）
+      const palmWidth = px2mm(d2(lm[5], lm[17], W, H));
+      const thumbLength = segSum(1, 2, 3, 4);
+      const indexLength = segSum(5, 6, 7, 8);
+      const middleLength = segSum(9, 10, 11, 12);
+      const ringLength = segSum(13, 14, 15, 16);
+      const pinkyLength = segSum(17, 18, 19, 20);
+      const thumbSpan = px2mm(d2(lm[0], lm[4], W, H));
+
+      /* ── 合理性门控 ─────────────────────────────────────── */
+      const tRatio = thumbLength / handLength;
+      const mRatio = middleLength / handLength;
+      const plaus = (tRatio > .28 && tRatio < .62 && mRatio > .28 && mRatio < .62) ? 1 : 0.4;
+
+      const visAvg = lm.reduce((s, l) => s + (l.visibility ?? 1), 0) / lm.length;
+      const confidence = Math.min(visAvg * plaus, 1);
+
+      const clamp = (v, ref) => Math.max(ref.min * .8, Math.min(ref.max * 1.2, v));
+
+      return {
+        handLength: clamp(handLength, REF.handLength),
+        palmWidth: clamp(palmWidth, REF.palmWidth),
+        thumbLength: clamp(thumbLength, REF.thumbLength),
+        indexLength: clamp(indexLength, REF.indexLength),
+        middleLength: clamp(middleLength, REF.middleLength),
+        ringLength: clamp(ringLength, REF.ringLength),
+        pinkyLength: clamp(pinkyLength, REF.pinkyLength),
+        thumbSpan: clamp(thumbSpan, REF.thumbSpan),
+        confidence,
+        calibrated: calib.handLengthMm !== null,
+      };
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       DRAW SKELETON ON OVERLAY CANVAS
+    ───────────────────────────────────────────────────────── */
+    const CONNECTIONS = [
+      [0, 1], [1, 2], [2, 3], [3, 4],         // thumb
+      [0, 5], [5, 6], [6, 7], [7, 8],         // index
+      [0, 9], [9, 10], [10, 11], [11, 12],    // middle
+      [0, 13], [13, 14], [14, 15], [15, 16],  // ring
+      [0, 17], [17, 18], [18, 19], [19, 20],  // pinky
+      [5, 9], [9, 13], [13, 17],            // palm arch
+    ];
+    const TIPS = new Set([4, 8, 12, 16, 20]);
+
+    function drawSkeleton(ctx, res, canvas) {
+      if (!res.multiHandLandmarks) return;
+      const W = canvas.width, H = canvas.height;
+
+      ctx.save();
+      ctx.translate(W, 0);
+      ctx.scale(-1, 1);   // mirror to match flipped video
+
+      res.multiHandLandmarks.forEach(lm => {
+        /* connections – white lines on dark camera feed */
+        ctx.strokeStyle = 'rgba(255,255,255,.75)';
+        ctx.lineWidth = 1.5;
+        ctx.lineCap = 'round';
+        CONNECTIONS.forEach(([a, b]) => {
+          ctx.beginPath();
+          ctx.moveTo(lm[a].x * W, lm[a].y * H);
+          ctx.lineTo(lm[b].x * W, lm[b].y * H);
+          ctx.stroke();
+        });
+
+        /* landmarks – white/gray dots, no glow */
+        lm.forEach((p, i) => {
+          const x = p.x * W, y = p.y * H;
+          if (TIPS.has(i)) {
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1;
+            ctx.stroke();
+          } else if (i === 0) {
+            ctx.fillStyle = 'rgba(255,255,255,.9)';
+            ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill();
+          } else {
+            ctx.fillStyle = 'rgba(200,200,200,.8)';
+            ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
+          }
+        });
+      });
+
+      ctx.restore();
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       UPDATE DATA CARDS UI
+    ───────────────────────────────────────────────────────── */
+    const CARD_MAP = [
+      { vid: 'v-hl', bid: 'b-hl', pid: 'p-hl', cid: 'dc-hl', key: 'handLength', ref: REF.handLength },
+      { vid: 'v-pw', bid: 'b-pw', pid: 'p-pw', cid: 'dc-pw', key: 'palmWidth', ref: REF.palmWidth },
+      { vid: 'v-th', bid: 'b-th', pid: 'p-th', cid: 'dc-th', key: 'thumbLength', ref: REF.thumbLength },
+      { vid: 'v-ix', bid: 'b-ix', pid: 'p-ix', cid: 'dc-ix', key: 'indexLength', ref: REF.indexLength },
+      { vid: 'v-mi', bid: 'b-mi', pid: 'p-mi', cid: 'dc-mi', key: 'middleLength', ref: REF.middleLength },
+      { vid: 'v-ri', bid: 'b-ri', pid: 'p-ri', cid: 'dc-ri', key: 'ringLength', ref: REF.ringLength },
+      { vid: 'v-pk', bid: 'b-pk', pid: 'p-pk', cid: 'dc-pk', key: 'pinkyLength', ref: REF.pinkyLength },
+      { vid: 'v-sp', bid: 'b-sp', pid: 'p-sp', cid: 'dc-sp', key: 'thumbSpan', ref: REF.thumbSpan },
+    ];
+
+    function updateUI(m) {
+      CARD_MAP.forEach(({ vid, bid, pid, cid, key, ref }) => {
+        const ve = document.getElementById(vid);
+        const be = document.getElementById(bid);
+        const pe = document.getElementById(pid);
+        const ce = document.getElementById(cid);
+
+        if (m && m[key]) {
+          const v = m[key];
+          const pct = Math.round(((v - ref.min) / (ref.max - ref.min)) * 100);
+          const clamped = Math.max(4, Math.min(100, pct));
+
+          ve.textContent = Math.round(v);
+          be.style.width = clamped + '%';
+
+          /* Percentile label */
+          if (pct < 20) pe.textContent = '▼ P20以下';
+          else if (pct < 40) pe.textContent = `≈ P${pct}`;
+          else if (pct < 60) pe.textContent = `≈ P50 均值`;
+          else if (pct < 80) pe.textContent = `≈ P${pct}`;
+          else pe.textContent = '▲ P80以上';
+
+          ce.classList.add('on');
+        } else {
+          ce.classList.remove('on');
+        }
+      });
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       BOOT
+    ───────────────────────────────────────────────────────── */
+    initThree();
+
+    /* Enter 键支持 */
+    document.getElementById('setupInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') applySetupCalib();
+    });
+    document.getElementById('calibInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') applyCalib();
+    });
+
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,8 @@
+# 本地工具脚本
+*.bat
+
+# 依赖（已通过 npm install 安装）
+# node_modules/ 不忽略，因为本项目直接引用本地 node_modules 路径
+
+# Claude 本地工作区（自动生成，勿提交）
+.claude/worktrees/
