@@ -1,9 +1,9 @@
-import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import {
   ArrowLeft, Trophy, Heart, ShoppingCart, Share2, Download,
   ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, CheckCircle2, X,
-  Sparkles, Ruler, Move3D,
+  Sparkles, Ruler, Move3D, ExternalLink, Smartphone, Send,
 } from 'lucide-react';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
@@ -17,15 +17,29 @@ import { addFavorite, removeFavorite, getUserFavorites } from '../../lib/api/fav
 import { getFormulas, getPreferences } from '../../lib/api/scoring';
 import type { ScoringFormula, CategoricalPreference } from '../../lib/api/scoring';
 import { computeComfortScore } from '../../lib/scoring/comfortEngine';
-import { allPhones as localPhones } from './phoneData';
-import { IdealPhoneModel3D, computeIdealParams } from './IdealPhoneModel3D';
+import { allPhones as localPhones, phoneBuyLinks } from './phoneData';
+import { IdealPhoneModel3D, computeIdealParams, IdealPhoneParams } from './IdealPhoneModel3D';
 
-function calcSimilarity(phone: PhoneModel): number {
-  const wDiff = Math.abs(72 - phone.width) / 10;
-  const hDiff = Math.abs(152 - phone.height) / 25;
-  const tDiff = Math.abs(8.2 - phone.thickness) / 3;
-  const weightDiff = Math.abs(195 - phone.weight) / 50;
-  return Math.round(Math.max(0, 100 - (wDiff + hDiff + tDiff + weightDiff) * 12));
+// 基于理想参数的加权相似度（越接近用户手感最优参数，得分越高）
+function calcSimilarity(phone: PhoneModel, ideal: IdealPhoneParams): number {
+  const wDiff = Math.abs(ideal.width - phone.width) / 10;       // weight: 30%
+  const hDiff = Math.abs(ideal.height - phone.height) / 25;     // weight: 25%
+  const tDiff = Math.abs(ideal.thickness - phone.thickness) / 3; // weight: 20%
+  const weightDiff = Math.abs(190 - phone.weight) / 50;          // weight: 15%
+  const crDiff = ideal.cornerRadius && phone.cornerRadius        // weight: 10%
+    ? Math.abs(ideal.cornerRadius - phone.cornerRadius) / 8 : 0;
+  const score = 100 - (wDiff * 30 + hDiff * 25 + tDiff * 20 + weightDiff * 15 + crDiff * 10) * 0.45;
+  return Math.round(Math.max(0, Math.min(100, score)));
+}
+
+// 生成各维度差值（用于热力图展示）
+function getDimDiffs(phone: PhoneModel, ideal: IdealPhoneParams) {
+  return [
+    { label: '宽度', ideal: ideal.width, actual: phone.width, unit: 'mm', max: 8 },
+    { label: '高度', ideal: ideal.height, actual: phone.height, unit: 'mm', max: 20 },
+    { label: '厚度', ideal: ideal.thickness, actual: phone.thickness, unit: 'mm', max: 3 },
+    { label: '重量', ideal: 190, actual: phone.weight, unit: 'g', max: 60 },
+  ];
 }
 
 function getPhoneScores(p: PhoneModel) {
@@ -59,6 +73,7 @@ function getProsCons(p: PhoneModel) {
   return { pros: pros.slice(0, 3), cons: cons.slice(0, 3) };
 }
 
+
 export function GripReport() {
   const navigate = useNavigate();
   const { user, isLoggedIn } = useAuth();
@@ -71,6 +86,11 @@ export function GripReport() {
   const [savingReport, setSavingReport] = useState(false);
   const [scoringFormulas, setScoringFormulas] = useState<ScoringFormula[]>([]);
   const [scoringPrefs, setScoringPrefs] = useState<CategoricalPreference[]>([]);
+  const [customPref, setCustomPref] = useState({ material: '', color: '', budget: '', note: '' });
+  const [customSent, setCustomSent] = useState(false);
+  const [mfgFilter, setMfgFilter] = useState<'all' | 'titanium' | 'aluminum' | 'ag-glass' | 'leather' | 'ceramic'>('all');
+  const [selectedMfg, setSelectedMfg] = useState<string | null>(null);
+  const [customStep, setCustomStep] = useState<1 | 2 | 3>(1);
 
   // Load scoring formulas
   useEffect(() => {
@@ -115,9 +135,9 @@ export function GripReport() {
   }, [isLoggedIn, user]); // Only once on mount if data exists
 
   const rankedPhones = useMemo(() => {
-    const phones = selectedPhones.length > 0 ? selectedPhones : localPhones.slice(0, 6);
-    return phones.map((p: PhoneModel) => ({ ...p, similarity: calcSimilarity(p) })).sort((a: any, b: any) => b.similarity - a.similarity);
-  }, [selectedPhones]);
+    const phones = selectedPhones.length > 0 ? selectedPhones : localPhones;
+    return phones.map((p: PhoneModel) => ({ ...p, similarity: calcSimilarity(p, idealParams) })).sort((a: any, b: any) => b.similarity - a.similarity);
+  }, [selectedPhones, idealParams]);
 
   const radarData = useMemo(() => {
     const dims = ['握持感', '可达性', '舒适度', '轻便性', '单手操控', '口袋友好'];
@@ -175,7 +195,10 @@ export function GripReport() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#e8e8ed] text-[12px] text-[#646a73] hover:bg-[#f5f6f8]">
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#e8e8ed] text-[12px] text-[#646a73] hover:bg-[#f5f6f8] transition-colors"
+              onClick={() => window.print()}
+            >
               <Share2 className="w-3 h-3" /> 分享
             </button>
             <button
@@ -403,6 +426,85 @@ export function GripReport() {
         </table>
       </div>
 
+      {/* ─── Feature 1.1: 智能匹配推荐卡 ─── */}
+      <div className="bg-gradient-to-br from-[#f0f4ff] to-[#f8f9ff] rounded-2xl border border-[#dde5ff] p-5 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-[#3370ff] flex items-center justify-center">
+            <Smartphone className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <h3 className="text-[14px] text-[#1f2329]" style={{ fontWeight: 600 }}>基于你手部数据的智能匹配</h3>
+            <p className="text-[11px] text-[#8f959e]">理想参数 {idealParams.width}×{idealParams.height}×{idealParams.thickness}mm · 匹配当前市场机型</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {rankedPhones.slice(0, 3).map((phone: any, idx: number) => {
+            const diffs = getDimDiffs(phone, idealParams);
+            const links = BUY_LINKS[phone.id] || {};
+            return (
+              <div key={phone.id} className={`bg-white rounded-xl border p-4 relative overflow-hidden ${idx === 0 ? 'border-[#3370ff] shadow-sm shadow-blue-100' : 'border-[#e8e8ed]'
+                }`}>
+                {idx === 0 && (
+                  <div className="absolute top-0 right-0 px-2 py-1 bg-[#3370ff] text-white text-[9px] rounded-bl-lg" style={{ fontWeight: 600 }}>
+                    最佳匹配
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mb-3">
+                  <ImageWithFallback src={phone.image} alt={phone.name} className="w-10 h-10 rounded-lg object-cover" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] text-[#1f2329] truncate" style={{ fontWeight: 500 }}>{phone.name}</div>
+                    <div className="text-[11px] text-[#8f959e]">¥{phone.price.toLocaleString()}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[18px] tabular-nums" style={{
+                      fontWeight: 700,
+                      color: phone.similarity >= 80 ? '#34c759' : phone.similarity >= 60 ? '#ff9f0a' : '#f54a45',
+                    }}>{phone.similarity}%</div>
+                    <div className="text-[9px] text-[#8f959e]">匹配度</div>
+                  </div>
+                </div>
+                {/* 参数差异热力图 */}
+                <div className="space-y-1.5 mb-3">
+                  {diffs.map(d => {
+                    const diff = d.actual - d.ideal;
+                    const absDiff = Math.abs(diff);
+                    const pct = Math.min(100, (absDiff / d.max) * 100);
+                    const color = absDiff <= d.max * 0.2 ? '#34c759' : absDiff <= d.max * 0.5 ? '#ff9f0a' : '#f54a45';
+                    return (
+                      <div key={d.label} className="flex items-center gap-2">
+                        <span className="text-[10px] text-[#8f959e] w-8">{d.label}</span>
+                        <div className="flex-1 h-1.5 bg-[#f5f6f8] rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${100 - pct}%`, background: color }} />
+                        </div>
+                        <span className="text-[10px] tabular-nums w-14 text-right" style={{ color }}>
+                          {diff > 0 ? '+' : ''}{diff.toFixed(1)}{d.unit}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* 购买跳转 */}
+                <div className="flex gap-1.5">
+                  {links.jd && (
+                    <a href={links.jd} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-[#e2231a] text-white text-[11px] hover:bg-[#c91a13] transition-colors"
+                      style={{ fontWeight: 500 }}>
+                      <ExternalLink className="w-3 h-3" /> 京东购买
+                    </a>
+                  )}
+                  {links.official && (
+                    <a href={links.official} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-[#e8e8ed] text-[#646a73] text-[11px] hover:bg-[#f5f6f8] transition-colors">
+                      官网
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ─── Phone Cards with Pros/Cons ─── */}
       <h3 className="text-[14px] text-[#1f2329] mb-4" style={{ fontWeight: 600 }}>详细评估与购买推荐</h3>
       <div className="space-y-4 mb-6">
@@ -506,6 +608,270 @@ export function GripReport() {
         })}
       </div>
 
+      {/* ─── Feature 1.3: 定制化手机对接平台 ─── */}
+      <div className="rounded-2xl border border-[#e8e8ed] overflow-hidden mb-6">
+        {/* 标题栏 */}
+        <div className="bg-gradient-to-br from-[#0a0a1a] to-[#12122a] px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+              <Send className="w-3.5 h-3.5 text-indigo-300" />
+            </div>
+            <div>
+              <h3 className="text-[14px] text-white/90" style={{ fontWeight: 600 }}>定制化手机对接平台</h3>
+              <p className="text-[10px] text-white/35">将你的理想参数提交给合作厂商，探索专属定制方案（单台起做）</p>
+            </div>
+          </div>
+          {/* 步骤进度 */}
+          <div className="flex items-center gap-1.5">
+            {([1, 2, 3] as const).map(s => (
+              <div key={s} className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] transition-all ${customStep === s ? 'bg-indigo-500 text-white' :
+                customStep > s ? 'bg-indigo-500/30 text-indigo-300' :
+                  'bg-white/10 text-white/35'
+                }`} style={{ fontWeight: 600 }}>{s}</div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-5 bg-white">
+          {/* Step 1: 确认参数 */}
+          {customStep === 1 && (
+            <div>
+              <h4 className="text-[13px] text-[#1f2329] mb-1" style={{ fontWeight: 600 }}>Step 1 · 确认你的理想参数</h4>
+              <p className="text-[11px] text-[#8f959e] mb-4">已由你的手部数据自动计算，可根据个人喜好微调</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                {[
+                  { label: '机身宽度', value: `${idealParams.width} mm`, sub: `基于虎口跨度 ${handData.thumbSpan}mm` },
+                  { label: '机身高度', value: `${idealParams.height} mm`, sub: `基于手长 ${handData.handLength}mm` },
+                  { label: '机身厚度', value: `${idealParams.thickness} mm`, sub: '握感与便携平衡点' },
+                  { label: '圈角半径', value: `R${idealParams.cornerRadius} mm`, sub: `基于拇指长 ${handData.thumbLength}mm` },
+                ].map(item => (
+                  <div key={item.label} className="border border-[#e8e8ed] rounded-xl p-3">
+                    <div className="text-[11px] text-[#8f959e] mb-1">{item.label}</div>
+                    <div className="text-[18px] text-[#3370ff] tabular-nums" style={{ fontWeight: 700 }}>{item.value}</div>
+                    <div className="text-[9px] text-[#c9cdd4] mt-0.5 leading-tight">{item.sub}</div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setCustomStep(2)}
+                className="w-full py-2.5 rounded-lg bg-[#3370ff] text-white text-[13px] hover:bg-[#2b5bdb] transition-colors"
+                style={{ fontWeight: 500 }}
+              >
+                确认参数，选择厂商 →
+              </button>
+            </div>
+          )}
+
+          {/* Step 2: 厂商选择 */}
+          {customStep === 2 && (() => {
+            const manufacturers = [
+              {
+                id: 'tiangong', name: '天工精工', location: '深圳宝安', grade: '高定级',
+                materials: ['titanium', 'aluminum', 'ceramic'],
+                matLabels: '钛合金框架 | 铝合金型材 | 陶瓷背板',
+                price: '8,000–18,000元/台',
+                lead: '45工作日',
+                minQty: 1,
+                desc: '专注旗舰手机CMF后处理定制，具备PVD镀膜及纳米喷砂工艺，曾为多个国内头部品牌提供小批量验证打样服务。',
+                badge: '旗舰工艺', badgeColor: '#7b61ff',
+              },
+              {
+                id: 'xinghao', name: '星弥科技', location: '东莞松山湖', grade: '旗舰级',
+                materials: ['aluminum', 'ag-glass', 'leather'],
+                matLabels: '铝合金CNC | AG磨砂玻璃 | 素皮背板',
+                price: '6,000–12,000元/台',
+                lead: '30工作日',
+                minQty: 1,
+                desc: '10余年CMF定制经验，擅长素皮压纹与AG玻璃蚀刻，支持颜色完全自定义及微批次混色打样，性价比均衡。',
+                badge: '性价比优', badgeColor: '#34c759',
+              },
+              {
+                id: 'longhua', name: '龙华创造', location: '深圳龙华', grade: '消费级',
+                materials: ['aluminum', 'ag-glass'],
+                matLabels: '铝合金 | AG玻璃',
+                price: '3,500–6,000元/台',
+                lead: '20工作日',
+                minQty: 1,
+                desc: '面向预算有限用户，提供铝合金阳极氧化与AG玻璃磨砂两种背板方案，同时支持基于现货机型的外观改款定制。',
+                badge: '新手友好', badgeColor: '#ff9f0a',
+              },
+              {
+                id: 'costar', name: 'Costar定制', location: '深圳南山科技园', grade: '高定级',
+                materials: ['titanium', 'ceramic', 'leather'],
+                matLabels: '钛合金 | 陶瓷 | 顶级素皮',
+                price: '12,000–20,000元/台',
+                lead: '60工作日',
+                minQty: 1,
+                desc: '专注极致高定细分市场，提供手工Pantone配色、钛合金拉丝/喷砂工艺及顶级进口素皮，适合对工艺品质有极致追求的用户。',
+                badge: '顶级高定', badgeColor: '#1f2329',
+              },
+            ];
+            const filtered = mfgFilter === 'all' ? manufacturers : manufacturers.filter(m => m.materials.includes(mfgFilter));
+            return (
+              <div>
+                <h4 className="text-[13px] text-[#1f2329] mb-1" style={{ fontWeight: 600 }}>Step 2 · 选择合作厂商</h4>
+                <p className="text-[11px] text-[#8f959e] mb-3">按材质筛选，所有厂商均支持单台定制</p>
+                {/* 材质筛选 */}
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {([
+                    ['all', '全部'],
+                    ['titanium', '钛合金'],
+                    ['aluminum', '铝合金'],
+                    ['ag-glass', 'AG玻璃'],
+                    ['leather', '素皮'],
+                    ['ceramic', '陶瓷'],
+                  ] as [typeof mfgFilter, string][]).map(([key, label]) => (
+                    <button key={key}
+                      onClick={() => setMfgFilter(key)}
+                      className={`px-2.5 py-1 rounded-full text-[11px] transition-colors border ${mfgFilter === key
+                        ? 'bg-[#3370ff] border-[#3370ff] text-white'
+                        : 'border-[#e8e8ed] text-[#646a73] hover:border-[#3370ff] hover:text-[#3370ff]'
+                        }`}>{label}</button>
+                  ))}
+                </div>
+                {/* 厂商卡片 */}
+                <div className="space-y-2 mb-4">
+                  {filtered.map(mfg => (
+                    <div
+                      key={mfg.id}
+                      onClick={() => setSelectedMfg(mfg.id)}
+                      className={`border rounded-xl p-4 cursor-pointer transition-all ${selectedMfg === mfg.id
+                        ? 'border-[#3370ff] bg-[#f0f4ff]'
+                        : 'border-[#e8e8ed] hover:border-[#3370ff]/40 hover:bg-[#fafbfc]'
+                        }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[13px] text-[#1f2329]" style={{ fontWeight: 600 }}>{mfg.name}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full text-white" style={{ background: mfg.badgeColor, fontWeight: 600 }}>{mfg.badge}</span>
+                          </div>
+                          <p className="text-[11px] text-[#8f959e] mb-2">{mfg.desc}</p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#646a73]">
+                            <span>📍 {mfg.location}</span>
+                            <span>💠 {mfg.matLabels}</span>
+                            <span>💰 {mfg.price}</span>
+                            <span>⏱ {mfg.lead}</span>
+                          </div>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${selectedMfg === mfg.id ? 'border-[#3370ff] bg-[#3370ff]' : 'border-[#c9cdd4]'
+                          }`}>
+                          {selectedMfg === mfg.id && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {filtered.length === 0 && (
+                    <div className="text-center py-6 text-[12px] text-[#8f959e]">该材质暂无匹配厂商，请选择其他材质筛选</div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setCustomStep(1)}
+                    className="px-4 py-2 rounded-lg border border-[#e8e8ed] text-[12px] text-[#646a73] hover:bg-[#f5f6f8]">返回</button>
+                  <button
+                    onClick={() => { if (selectedMfg) setCustomStep(3); }}
+                    disabled={!selectedMfg}
+                    className="flex-1 py-2 rounded-lg text-[13px] text-white transition-colors"
+                    style={{ fontWeight: 500, background: selectedMfg ? '#3370ff' : '#c9cdd4' }}
+                  >
+                    {selectedMfg ? '已选择，填写需求 →' : '请先选择一家厂商'}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Step 3: 填写需求并提交 */}
+          {customStep === 3 && (
+            customSent ? (
+              <div className="text-center py-8">
+                <div className="w-14 h-14 rounded-full bg-[#34c759]/10 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-7 h-7 text-[#34c759]" />
+                </div>
+                <h4 className="text-[16px] text-[#1f2329] mb-2" style={{ fontWeight: 600 }}>需求已提交！</h4>
+                <p className="text-[12px] text-[#8f959e] mb-6">厂商将在3–5个工作日内与你联系。也可下载需求单自行联系。</p>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={() => {
+                      const mfgNames: Record<string, string> = { tiangong: '天工精工', xinghao: '星弥科技', longhua: '龙华创造', costar: 'Costar定制' };
+                      const content = `GripFit 定制化需求单\n${'='.repeat(40)}\n目标厂商: ${mfgNames[selectedMfg || ''] || selectedMfg}\n\n手部数据:\n  手长: ${handData.handLength}mm  手宽: ${handData.handWidth}mm\n  拇指长: ${handData.thumbLength}mm  虎口跨度: ${handData.thumbSpan}mm\n\n理想参数:\n  宽度: ${idealParams.width}mm  高度: ${idealParams.height}mm\n  厚度: ${idealParams.thickness}mm  圆角: R${idealParams.cornerRadius}mm\n\n偏好设置:\n  材质: ${customPref.material || '不限'}\n  预算: ${customPref.budget || '不限'}\n  备注: ${customPref.note || '无'}\n\n生成时间: ${new Date().toLocaleString('zh-CN')}\nPowered by GripFit`;
+                      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a'); a.href = url; a.download = 'GripFit_定制需求单.txt'; a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#e8e8ed] text-[12px] text-[#646a73] hover:bg-[#f5f6f8]">
+                    <Download className="w-3.5 h-3.5" /> 下载需求单
+                  </button>
+                  <button onClick={() => { setCustomStep(1); setCustomSent(false); setSelectedMfg(null); }}
+                    className="px-4 py-2 rounded-lg bg-[#f5f6f8] text-[12px] text-[#646a73] hover:bg-[#e8e8ed]">重新选择</button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <h4 className="text-[13px] text-[#1f2329] mb-1" style={{ fontWeight: 600 }}>Step 3 · 填写补充需求</h4>
+                <p className="text-[11px] text-[#8f959e] mb-4">如需进一步说明定制需求，帮助厂商更好理解你的期望</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="text-[11px] text-[#646a73] block mb-1">偏好材质</label>
+                    <select value={customPref.material} onChange={e => setCustomPref(p => ({ ...p, material: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-[#e8e8ed] text-[12px] text-[#1f2329] focus:outline-none focus:border-[#3370ff]">
+                      <option value="">不限</option>
+                      <option value="titanium">钛合金框架</option>
+                      <option value="aluminum">铝合金框架</option>
+                      <option value="ag-glass">AG磨砂玻璃背板</option>
+                      <option value="leather">素皮背板</option>
+                      <option value="ceramic">陶瓷背板</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#646a73] block mb-1">预算范围</label>
+                    <select value={customPref.budget} onChange={e => setCustomPref(p => ({ ...p, budget: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-[#e8e8ed] text-[12px] text-[#1f2329] focus:outline-none focus:border-[#3370ff]">
+                      <option value="">不限</option>
+                      <option value="3500-6000">3500–6000元</option>
+                      <option value="6000-12000">6000–12000元</option>
+                      <option value="12000+">12000元以上</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="text-[11px] text-[#646a73] block mb-1">补充说明（可选）</label>
+                  <textarea
+                    value={customPref.note}
+                    onChange={e => setCustomPref(p => ({ ...p, note: e.target.value }))}
+                    placeholder="如：需要支持5G，偏好深色系外观，左手为主…"
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-lg border border-[#e8e8ed] text-[12px] text-[#1f2329] placeholder-[#c9cdd4] focus:outline-none focus:border-[#3370ff] resize-none"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setCustomStep(2)}
+                    className="px-4 py-2 rounded-lg border border-[#e8e8ed] text-[12px] text-[#646a73] hover:bg-[#f5f6f8]">返回</button>
+                  <button
+                    onClick={() => {
+                      // 下载需求单
+                      const mfgNames: Record<string, string> = { tiangong: '天工精工', xinghao: '星弥科技', longhua: '龙华创造', costar: 'Costar定制' };
+                      const content = `GripFit 定制化需求单\n${'='.repeat(40)}\n目标厂商: ${mfgNames[selectedMfg || ''] || selectedMfg}\n\n手部数据:\n  手长: ${handData.handLength}mm  手宽: ${handData.handWidth}mm\n  拇指长: ${handData.thumbLength}mm  虎口跨度: ${handData.thumbSpan}mm\n\n理想参数:\n  宽度: ${idealParams.width}mm  高度: ${idealParams.height}mm\n  厚度: ${idealParams.thickness}mm  圆角: R${idealParams.cornerRadius}mm\n\n偏好设置:\n  材质: ${customPref.material || '不限'}\n  预算: ${customPref.budget || '不限'}\n  备注: ${customPref.note || '无'}\n\n生成时间: ${new Date().toLocaleString('zh-CN')}\nPowered by GripFit`;
+                      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+                      a.href = url; a.download = 'GripFit_定制需求单.txt'; a.click(); URL.revokeObjectURL(url);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#3370ff] text-[#3370ff] text-[12px] hover:bg-[#3370ff]/5">
+                    <Download className="w-3.5 h-3.5" /> 下载需求单
+                  </button>
+                  <button onClick={() => setCustomSent(true)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-[#3370ff] text-white text-[12px] hover:bg-[#2b5bdb]"
+                    style={{ fontWeight: 500 }}>
+                    <Send className="w-3.5 h-3.5" /> 提交给厂商
+                  </button>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      </div>
+
       {/* Bottom Nav */}
       <div className="flex items-center justify-between pt-4 border-t border-[#e8e8ed]">
         <button onClick={() => navigate('/grip-preview')}
@@ -586,7 +952,6 @@ export function GripReport() {
             )}
           </div>
         </div>
-      )}
     </div>
   );
 }
