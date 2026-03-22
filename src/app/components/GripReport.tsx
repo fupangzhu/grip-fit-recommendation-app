@@ -134,6 +134,16 @@ export function GripReport() {
     }
   }, [isLoggedIn, user]); // Only once on mount if data exists
 
+  // ─── 理想手感模型参数（由手部数据驱动）───
+  const idealParams = useMemo(() => computeIdealParams(
+    handData.handLength,
+    handData.handWidth,
+    handData.thumbLength,
+    handData.thumbSpan,
+    customParams.gripStyle,
+    customParams.preferredMaterial,
+  ), [handData, customParams]);
+
   const rankedPhones = useMemo(() => {
     const phones = selectedPhones.length > 0 ? selectedPhones : localPhones;
     return phones.map((p: PhoneModel) => ({ ...p, similarity: calcSimilarity(p, idealParams) })).sort((a: any, b: any) => b.similarity - a.similarity);
@@ -168,15 +178,7 @@ export function GripReport() {
 
   const radarColors = ['#3370ff', '#7b61ff', '#34c759', '#ff9f0a'];
 
-  // ─── 理想手感模型参数（由手部数据驱动）───
-  const idealParams = useMemo(() => computeIdealParams(
-    handData.handLength,
-    handData.handWidth,
-    handData.thumbLength,
-    handData.thumbSpan,
-    customParams.gripStyle,
-    customParams.preferredMaterial,
-  ), [handData, customParams]);
+
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-8">
@@ -440,7 +442,7 @@ export function GripReport() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {rankedPhones.slice(0, 3).map((phone: any, idx: number) => {
             const diffs = getDimDiffs(phone, idealParams);
-            const links = BUY_LINKS[phone.id] || {};
+            const links = phoneBuyLinks[phone.id] || {};
             return (
               <div key={phone.id} className={`bg-white rounded-xl border p-4 relative overflow-hidden ${idx === 0 ? 'border-[#3370ff] shadow-sm shadow-blue-100' : 'border-[#e8e8ed]'
                 }`}>
@@ -952,6 +954,7 @@ export function GripReport() {
             )}
           </div>
         </div>
+      )}
     </div>
   );
 }

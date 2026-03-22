@@ -41,6 +41,7 @@ Thumbs.db
 *.bat
 temp_docx/
 手部测量识别/
+ToB界面设计/
 
 # Nested git
 **/.git/
